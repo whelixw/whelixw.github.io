@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1"
+    />
+    <meta
+      name="description"
+      content="Your Name — portfolio, projects, and experience."
+    />
+    <title>Your Name — Portfolio</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header">
+      <div class="container">
+        <nav aria-label="Primary">
+          <a class="brand" href="#">Your Name</a>
+          <ul class="nav">
+            <li><a href="#about">About</a></li>
+            <li><a href="#experience">Experience</a></li>
+            <li><a href="#projects">Projects</a></li>
+            <li><a href="#skills">Skills</a></li>
+            <li><a href="#contact">Contact</a></li>
+          </ul>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="hero">
+        <div class="container">
+          <h1>Your Name</h1>
+          <p class="tagline">
+            Role or headline — e.g., Full‑stack Developer focused on
+            TypeScript, React, and cloud.
+          </p>
+          <div class="cta">
+            <a class="btn btn-primary" href="#contact">Contact me</a>
+            <a
+              class="btn"
+              href="assets/resume.pdf"
+              target="_blank"
+              rel="noopener noreferrer"
+              >Download resume</a
+            >
+          </div>
+        </div>
+      </section>
+
+      <section id="about" class="section">
+        <div class="container">
+          <h2>About</h2>
+          <p>
+            Short summary about you. Example: I'm a software engineer with 5+
+            years of experience building reliable web apps. I enjoy shipping
+            features end‑to‑end, mentoring, and improving developer
+            experience.
+          </p>
+        </div>
+      </section>
+
+      <section id="experience" class="section">
+        <div class="container">
+          <h2>Experience</h2>
+
+          <article class="xp">
+            <header class="xp-head">
+              <h3>Senior Developer · Company Name</h3>
+              <span class="meta">2022 — Present · City, Country</span>
+            </header>
+            <p class="xp-summary">
+              One‑sentence overview of your impact in this role.
+            </p>
+            <ul class="xp-points">
+              <li>
+                Led X project, improving Y metric by Z% using A, B, and C.
+              </li>
+              <li>Collaborated with N engineers; mentored M juniors.</li>
+            </ul>
+          </article>
+
+          <article class="xp">
+            <header class="xp-head">
+              <h3>Developer · Company Name</h3>
+              <span class="meta">2020 — 2022 · City, Country</span>
+            </header>
+            <p class="xp-summary">
+              One‑sentence overview of your focus in this role.
+            </p>
+            <ul class="xp-points">
+              <li>Shipped feature X used by Y users.</li>
+              <li>Reduced build times by Z% via tooling improvements.</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section id="projects" class="section">
+        <div class="container">
+          <h2>Projects</h2>
+          <div class="grid">
+            <article class="card">
+              <h3>Project One</h3>
+              <p>
+                Brief description of what it does and your contribution.
+              </p>
+              <ul class="tags">
+                <li>TypeScript</li>
+                <li>React</li>
+                <li>Node</li>
+              </ul>
+              <div class="links">
+                <a
+                  href="https://github.com/your-username/project-one"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  >Code</a
+                >
+                <a
+                  href="https://project-one.example.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  >Live</a
+                >
+              </div>
+            </article>
+
+            <article class="card">
+              <h3>Project Two</h3>
+              <p>
+                One or two lines that highlight outcomes or metrics.
+              </p>
+              <ul class="tags">
+                <li>Python</li>
+                <li>FastAPI</li>
+                <li>Postgres</li>
+              </ul>
+              <div class="links">
+                <a
+                  href="https://github.com/your-username/project-two"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  >Code</a
+                >
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="skills" class="section">
+        <div class="container">
+          <h2>Skills</h2>
+          <ul class="tags">
+            <li>JavaScript</li>
+            <li>TypeScript</li>
+            <li>React</li>
+            <li>Node.js</li>
+            <li>Python</li>
+            <li>SQL</li>
+            <li>AWS</li>
+            <li>CI/CD</li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="contact" class="section">
+        <div class="container">
+          <h2>Contact</h2>
+          <p>
+            Email:
+            <a href="mailto:you@example.com">you@example.com</a>
+          </p>
+          <p>
+            Links:
+            <a
+              href="https://www.linkedin.com/in/your-handle"
+              target="_blank"
+              rel="noopener noreferrer"
+              >LinkedIn</a
+            >
+            ·
+            <a
+              href="https://github.com/your-username"
+              target="_blank"
+              rel="noopener noreferrer"
+              >GitHub</a
+            >
+            ·
+            <a
+              href="https://your-username.github.io"
+              target="_blank"
+              rel="noopener noreferrer"
+              >Website</a
+            >
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container">
+        <small>
+          © <span id="year"></span> Your Name. All rights reserved.
+        </small>
+      </div>
+    </footer>
+
+    <script>
+      document.getElementById("year").textContent =
+        new Date().getFullYear();
+    </script>
+  </body>
+</html>
