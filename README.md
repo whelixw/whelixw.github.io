@@ -26,6 +26,38 @@ The command spins up a local dev server (default `http://127.0.0.1:1111`) with l
 
 The generated static site will be written to `public/`. Push that to GitHub Pages or serve it from any static host.
 
+## Deploying to `whelixw.github.io`
+
+1. **Replace the old repo** — either rename this repo to `whelixw.github.io` or add the existing GitHub Pages repo as a new remote:
+	 ```powershell
+	 git remote rename origin old-origin
+	 git remote add origin git@github.com:whelixw/whelixw.github.io.git
+	 ```
+	 Push the current content:
+	 ```powershell
+	 git push -u origin master
+	 ```
+2. **Enable GitHub Pages** — in the repository settings, set *Source* to `Deploy from a branch`, branch `master` (or `main`) and folder `/ (root)`.
+3. **Optional: GitHub Actions build** — instead of committing the `public/` folder, let GitHub build Zola for you. Create `.github/workflows/deploy.yml` with:
+	 ```yaml
+	 name: Deploy site
+	 on:
+		 push:
+			 branches: [ master ]
+	 jobs:
+		 build:
+			 runs-on: ubuntu-latest
+			 steps:
+				 - uses: actions/checkout@v4
+					 with:
+						 submodules: recursive
+				 - uses: shalzz/zola-deploy-action@v0.20.1
+					 env:
+						 GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+						 BUILD_DIR: public
+	 ```
+	 This workflow runs `zola build` on every push and publishes directly to the `gh-pages` branch used by GitHub Pages.
+
 ## Updating thesis files
 
 1. Export your manuscript and final thesis as PDF files.

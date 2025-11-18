@@ -37,7 +37,7 @@ anchors = "on"
 name = "André Jørgensen"
 id = "whelixw"
 bio = "Bioinformatics engineer building reproducible HPC pipelines for pangenomics and NGS analysis."
-avatar = "img/avatar.jpeg"
+avatar = "img/avatar.png"
 links = [
     { name = "GitHub", icon = "github", url = "https://github.com/whelixw" },
     { name = "LinkedIn", icon = "linkedin", url = "https://www.linkedin.com/in/andr%C3%A9-rosengaard-j%C3%B8rgensen" },

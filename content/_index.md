@@ -4,10 +4,6 @@ template = 'home.html'
 
 Hej! I'm André Jørgensen, a bioinformatics engineer crafting reproducible HPC workflows for pangenomics, metagenomics, and mitochondrial genomics.
 
-**Thesis downloads**  
-▸ [Master thesis manuscript](/assets/manuscript.pdf)  
-▸ [Master thesis (final)](/assets/thesis_final.pdf)
-
 ## Current focus
 
 * Optimizing mitochondrial genome alignment using graph/pangenomic approaches on DTU's HPC.  
