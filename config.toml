@@ -52,7 +52,6 @@ recent_more_text = "more »"
 
 sections = [
     { name = "projects", path = "/projects", is_external = false },
-    { name = "teaching", path = "/teaching", is_external = false },
     { name = "blog", path = "/blog", is_external = false },
     { name = "about", path = "/about", is_external = false },
     { name = "github", path = "https://github.com/whelixw", is_external = true },

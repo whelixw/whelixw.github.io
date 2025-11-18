@@ -9,41 +9,20 @@ categories = ["Tools"]
 math = true
 +++
 
-This page descrbibes how this site is built. It is a static site generated with [Zola](https://www.getzola.org/). The source code is available on
-[GitHub](https://github.com/samyhaff/samyhaff.github.io/tree/master).
+This page describes how the site is assembled and why it closely mirrors Samy Haffoudhi’s original build. I’m standing on Samy’s shoulders here—the layout, tone, and most of the nice touches come directly from his repo at [github.com/samyhaff/samyhaff.github.io](https://github.com/samyhaff/samyhaff.github.io). For context on his setup you can read [Samy’s own write-up](https://samyhaff.github.io/blog/site/), which also links to the decisions behind the Serene theme.
 
 <!-- more -->
 
-## Zola
+## Stack
 
-Zola is a static site generator written in Rust. It is fast and consists in a single binary. I chose it because of its simplicity, as I was looking for a minimalistic solution to build my site.
-It uses the [Tera](https://keats.github.io/tera/) templating engine and the [Sass](https://sass-lang.com/) CSS preprocessor.
-Content is written in Markdown and can be organized in sections and categories.
-
-## Theme
-
-At first, the theme for this site was based on the [after-dark](https://github.com/getzola/after-dark) theme. I made some modifications to the colors and allowed for some additional text to the
-index page in my [fork](https://github.com/samyhaff/after-dark). Themes are simply added as git submodules in the `themes` directory.
-However, I ended up switching to the [serene](https://github.com/isunjn/serene/blob/latest/USAGE.md) theme which I found to be more aligned with my vision for the site.
-It supports dark mode, templates allowing for both a blog and a project page, and $\LaTeX$ rendering using [KaTeX](https://katex.org/).
+* **Generator:** [Zola](https://www.getzola.org/) — single binary, Markdown content, [Tera](https://keats.github.io/tera/) templates.
+* **Theme:** [Serene](https://github.com/isunjn/serene) (tracked as a git submodule). Dark/light modes, categories, and KaTeX just work out of the box.
+* **Content:** Plain Markdown files in `content/`, the same structure Samy uses so that the homepage/about/projects/blog templates drop in without edits.
 
 ## Deployment
 
-The site is deployed on [GitHub Pages](https://pages.github.com/). The `gh-pages` branch of the repo is used to host the built site. The `master` branch contains the source code.
-The site is built and deployed using the [zola-deploy-action](https://github.com/shalzz/zola-deploy-action) GitHub action.
+Everything is built locally with `zola build` and deployed to GitHub Pages. I’m following Samy’s recipe of pushing the source to the `master` branch and serving the built site from `gh-pages` via [shalzz/zola-deploy-action](https://github.com/shalzz/zola-deploy-action). No extra JavaScript or analytics—just static files.
 
-## Workflow
+## Why copy the structure?
 
-New content is created by adding a new Markdown file in the `content` directory. The file contains a front matter with the title and date of the post, as well as any taxonomies.
-Changes can be previewed locally by running `zola serve` which starts a local server and listens for any changes in the source file, before pushing the changes to the `master` branch
-and having the GitHub action build and deploy the site.
-
-## Inspirations
-
-I want sites to be simple, fast to load and free from unnecessary javascript and tracking. I was inspired by various personal and academic sites, as well as:
-
-* [Advent of Code](https://adventofcode.com/)
-* [Hackernews](https://news.ycombinator.com/)
-* [Luke Smith's site](https://lukesmith.xyz/)
-* [Gilles Castel's site](https://castel.dev)
-* [Lil'log](https://lilianweng.github.io)
+Samy’s site hits the sweet spot for me: minimal navigation, quick load times, and just enough room for notes, projects, and a blog-like logbook. Rather than reinvent the wheel, I’m reusing the pieces he shared publicly and swapping in my own content.
