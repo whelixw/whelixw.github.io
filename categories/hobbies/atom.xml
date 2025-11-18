@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en">
+    <title>André Jørgensen — Bioinformatics - Hobbies</title>
+    <subtitle>Bioinformatics engineer focused on reproducible HPC pipelines, pangenomics, and NGS analysis.</subtitle>
+    <link rel="self" type="application/atom+xml" href="https://whelixw.github.io/categories/hobbies/atom.xml"/>
+    <link rel="alternate" type="text/html" href="https://whelixw.github.io"/>
+    <generator uri="https://www.getzola.org/">Zola</generator>
+    <updated>2024-06-29T00:00:00+00:00</updated>
+    <id>https://whelixw.github.io/categories/hobbies/atom.xml</id>
+    <entry xml:lang="en">
+        <title>Book collection</title>
+        <published>2024-06-29T00:00:00+00:00</published>
+        <updated>2024-06-29T00:00:00+00:00</updated>
+        
+        <author>
+          <name>
+            
+              Unknown
+            
+          </name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="https://whelixw.github.io/blog/books/"/>
+        <id>https://whelixw.github.io/blog/books/</id>
+        
+        <summary type="html">&lt;p&gt;This list will eventually track everything on my shelf. For now it’s limited to the two dystopian staples that nudged me toward bioethics and systems thinking.&lt;&#x2F;p&gt;
+</summary>
+        
+    </entry>
+</feed>

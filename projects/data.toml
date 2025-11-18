@@ -1,0 +1,10 @@
+[[project]]
+name = "MSc Thesis — Optimizing Mitochondrial Genome Alignment with vgOrient"
+desc = "A progressive, graph-based tool designed to linearize circular mtDNA sequences to facilitate downstream analyses. By detecting and correcting misoriented or rotated genomes and identifying a common anchor region, vgOrient produces consistently oriented, linearized sequences. In comparisons with MARS across three datasets of varying complexity, vgOrient achieved equal or better alignment quality for reversed sequences and comparable performance on non-flipped data. These findings underscore vgOrient’s potential as a powerful solution for handling circular genomic data."
+tags = ["pangenomics", "genome variation graphs", "vg", "hpc", "mitochondria"]
+img = "/img/thesis.png"
+links = [
+  { name = "Source (vgorient)", url = "https://github.com/whelixw/vgorient" },
+  { name = "Manuscript (PDF)", url = "/assets/manuscript.pdf" },
+  { name = "Thesis (PDF)", url = "/assets/thesis_final.pdf" }
+]

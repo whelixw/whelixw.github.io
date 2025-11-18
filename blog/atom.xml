@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en">
+    <title>André Jørgensen — Bioinformatics - My Blog</title>
+    <subtitle>Bioinformatics engineer focused on reproducible HPC pipelines, pangenomics, and NGS analysis.</subtitle>
+    <link rel="self" type="application/atom+xml" href="https://whelixw.github.io/blog/atom.xml"/>
+    <link rel="alternate" type="text/html" href="https://whelixw.github.io/blog/"/>
+    <generator uri="https://www.getzola.org/">Zola</generator>
+    <updated>2024-06-30T00:00:00+00:00</updated>
+    <id>https://whelixw.github.io/blog/atom.xml</id>
+    <entry xml:lang="en">
+        <title>About this site</title>
+        <published>2024-06-30T00:00:00+00:00</published>
+        <updated>2024-06-30T00:00:00+00:00</updated>
+        
+        <author>
+          <name>
+            
+              Unknown
+            
+          </name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="https://whelixw.github.io/blog/site/"/>
+        <id>https://whelixw.github.io/blog/site/</id>
+        
+        <summary type="html">&lt;p&gt;This page describes how the site is assembled and why it closely mirrors Samy Haffoudhi’s original build. I’m standing on Samy’s shoulders here—the layout, tone, and most of the nice touches come directly from his repo at &lt;a rel=&quot;nofollow noreferrer&quot; href=&quot;https:&#x2F;&#x2F;github.com&#x2F;samyhaff&#x2F;samyhaff.github.io&quot;&gt;github.com&#x2F;samyhaff&#x2F;samyhaff.github.io&lt;&#x2F;a&gt;. For context on his setup you can read &lt;a rel=&quot;nofollow noreferrer&quot; href=&quot;https:&#x2F;&#x2F;samyhaff.github.io&#x2F;blog&#x2F;site&#x2F;&quot;&gt;Samy’s own write-up&lt;&#x2F;a&gt;, which also links to the decisions behind the Serene theme.&lt;&#x2F;p&gt;
+</summary>
+        
+    </entry>
+    <entry xml:lang="en">
+        <title>Book collection</title>
+        <published>2024-06-29T00:00:00+00:00</published>
+        <updated>2024-06-29T00:00:00+00:00</updated>
+        
+        <author>
+          <name>
+            
+              Unknown
+            
+          </name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="https://whelixw.github.io/blog/books/"/>
+        <id>https://whelixw.github.io/blog/books/</id>
+        
+        <summary type="html">&lt;p&gt;This list will eventually track everything on my shelf. For now it’s limited to the two dystopian staples that nudged me toward bioethics and systems thinking.&lt;&#x2F;p&gt;
+</summary>
+        
+    </entry>
+</feed>
