@@ -1,6 +1,6 @@
 +++
-title = "About me"
-description = "A about page of ..."
+title = "About"
+description = "How I approach bioinformatics, HPC, and collaborative science."
 template = "prose.html"
 insert_anchor_links = "none"
 
@@ -12,41 +12,31 @@ copy = false
 comment = false
 +++
 
-Hi, my name is Samy, I am a PhD student at Télécom Paris working under the supervision of Prof. [Fabian M. Suchanek](https://suchanek.name/) and Associate Prof.
-[Nils Holzenberger](https://perso.telecom-paristech.fr/holzenberger). My research interests lie in the intersection of structured data and language models.
-Prior to that, I obtained a MSc in Computer Science from the Technical University of Denmark and a MEng from Centrale Nantes in
-France. I created this site because I wanted to share my academic work, personal projects and anything else I find interesting with the world.
+Hej! I'm André Jørgensen, a bioinformatics engineer based in Hvidovre, Denmark. I recently completed the MSc Eng. in Bioinformatics and Systems Biology at DTU, where I focused on pangenomic alignment strategies for fragmented mitochondrial genomes. My happy place is somewhere between the wet lab and the scheduler queue—building analysis pipelines that are fast, reproducible, and easy for collaborators to reuse.
 
-## Interests
+I spend most of my time crafting Snakemake-driven workflows, wrangling containers (Docker/Singularity), and pulling apart pangenomic graph toolchains to squeeze out better signal from low-quality DNA. When I’m not benchmarking aligners, you’ll usually find me poking at metagenomic datasets, tidying up documentation, or sketching HPC cluster diagrams on a whiteboard.
 
-* Natural Language Processing
-* Machine learning
-* Knowledge graphs
-* Code generation
-* Logic
-* Free and open-source software
+## What I’m working on
 
-## Education
+* **Pangenomic alignment research** – evaluating graph-based approaches for mitochondrial genomes with limited reference panels.
+* **Reproducible HPC infrastructure** – packaging complex RNA/DNA analysis workflows so they run identically on DTU’s HPC, local workstations, and the cloud.
+* **Data storytelling** – translating statistical results into clear figures and short narratives for collaborators in evolutionary genomics.
 
-* **PhD Student** Télécom Paris, Institut Polytechnique de Paris, Plateau de Saclay, France, 2025-2028 (expected)
-    * Project: [Knowledge-based language models](https://suchanek.name/work/research/kb-lm/index.html)
-    * Supervisors: Prof. [Fabian M. Suchanek](https://suchanek.name/) and Associate Prof. [Nils Holzenberger](https://perso.telecom-paristech.fr/holzenberger)
-* **MSc in Computer Science**, Technical University of Denmark, Lyngby, Denmark, 2022-2024
-    * Master Thesis: "Implementation and Evaluation of Recent Neuroevolution Algorithms", supervised by Prof. [Carsten Witt](https://www.imm.dtu.dk/~cawi/)
-* **MEng** with a specialization in data and signal processing, Centrale Nantes, Nantes, France, 2020-2024
-* **Classes préparatoires aux grandes écoles**, Lycée Janson de Sailly, Paris, France, 2018-2020
+## Skills in practice
 
-## Work experience
+* Languages & tooling: Python, R, Bash, SQL, Snakemake, Nextflow, Git.
+* Platforms: HPC/SLURM clusters, containerized workflows, cloud object storage.
+* Methods: pangenomics, mitochondrial assembly, metagenomic profiling, QC/benchmark automation.
 
-* **Doctoral Researcher**, Télécom Paris, Plateau de Saclay, France, 2025-2028 (expected)
-* **Student Software Engineer** (part time), Microsoft, Lygnby, Denmark, 2023-2024 (1.5 years)
-* **Reseach internship in deep learning for audio processing**, Thales R&T, Pleateau de Saclay, France, 2022 (5 months)
-* **SOC Intern**, Atos, Bezons, France, 2021 (1 months)
+## Education snapshot
 
-## Hobbies
+* **MSc Eng., Bioinformatics and Systems Biology** — Technical University of Denmark (2022–2024)
+    * Thesis: *Optimizing Mitochondrial Genome Alignment using Advanced Pangenomic Techniques on HPC clusters*.
+* **BSc, Biotechnology** — Technical University of Denmark (2018–2022)
+    * Project: high-throughput transcript isoform annotation pipelines on HPC.
 
-* Long distance running
-* Weightlifting
-* [Reading](/blog/books)
-* Manga/Anime
-<!-- * [Piano](/blog/piano) -->
+## Outside the lab
+
+* Bouldering sessions to clear my head after long HPC runs.
+* Board games and puzzles with the DTU community.
+* Exploring palaeogenomics papers and speculative ideas about extinction dynamics.

@@ -1,0 +1,59 @@
+{% set stylesheet = get_url(path="styles.css") %}
+{% set nav_items = config.extra.sections | default(value=[]) %}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="{{ config.description }}" />
+    <title>{{ config.title }}</title>
+    <link rel="stylesheet" href="{{ stylesheet }}" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header interior">
+      <div class="container">
+        <nav aria-label="Primary">
+          <a class="brand" href="{{ get_url(path="/") }}">André Jørgensen</a>
+          <ul class="nav">
+            {% for item in nav_items %}
+              {% if item.is_external | default(value=false) %}
+                <li>
+                  <a href="{{ item.path }}" target="_blank" rel="noopener noreferrer">
+                    {{ item.name | title | safe }}
+                  </a>
+                </li>
+              {% else %}
+                <li>
+                  <a href="{{ get_url(path=item.path) }}">
+                    {{ item.name | title | safe }}
+                  </a>
+                </li>
+              {% endif %}
+            {% endfor %}
+          </ul>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main" class="page">
+      {% block content %}{% endblock content %}
+    </main>
+
+    <footer class="site-footer">
+      <div class="container">
+        <small>
+          © <span id="year"></span> André Jørgensen. All rights reserved.
+        </small>
+      </div>
+    </footer>
+
+    <script>
+      const yearEl = document.getElementById("year");
+      if (yearEl) {
+        yearEl.textContent = new Date().getFullYear();
+      }
+    </script>
+  </body>
+</html>
