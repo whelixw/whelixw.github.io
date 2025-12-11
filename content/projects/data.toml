@@ -8,3 +8,10 @@ links = [
   { name = "Manuscript (PDF)", url = "/assets/manuscript.pdf" },
   { name = "Thesis (PDF)", url = "/assets/thesis_final.pdf" }
 ]
+name = "Wildfire Prediction using Weather"
+desc = "A data-integration/machine learning project for predicting wildfires using two Kaggle datasets"
+tags = ["machine learning", "data integration", "gradient boosting", "wildfire", "weather"]
+img = "/img/wildfires.jpg"
+links = [
+  { name = "Source", url = "https://github.com/whelixw/week_11_wildfire_prediction" },
+]
