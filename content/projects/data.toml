@@ -8,6 +8,7 @@ links = [
   { name = "Manuscript (PDF)", url = "/assets/manuscript.pdf" },
   { name = "Thesis (PDF)", url = "/assets/thesis_final.pdf" }
 ]
+[[project]]
 name = "Wildfire Prediction using Weather"
 desc = "A data-integration/machine learning project for predicting wildfires using two Kaggle datasets"
 tags = ["machine learning", "data integration", "gradient boosting", "wildfire", "weather"]
