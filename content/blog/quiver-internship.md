@@ -12,6 +12,10 @@ The internship gave me an opportunity to work on a deceptively difficult problem
 
 <!-- more -->
 
+![Blind comparison between two synthetic forecasts before actual demand is revealed](/img/quiver-blind-forecast-before.png)
+
+*Two forecasts for a synthetic product series. Which one would you choose?*
+
 ## Making experiments reproducible
 
 A central part of my work was building a reproducible Python experimentation framework for comparing forecasting approaches with Quiver’s production ETS baseline.
@@ -24,11 +28,17 @@ Sparse demand creates some awkward failure modes. A model may predict zero for t
 
 I developed and tested gradient-boosting models using lagged values, rolling-window statistics, and seasonal features. I also explored DeepAR and product-hierarchy setups, alongside routing logic for sparse series and regression strategies based on product size.
 
+Average demand interval (ADI), measured here in months between non-zero observations, and demand variation provided a useful map of the problem. They helped distinguish smooth and erratic demand from intermittent and lumpy series, where the same forecasting policy often behaved very differently.
+
+![Synthetic demand-pattern scatter showing smooth, erratic, intermittent, and lumpy product series](/img/quiver-demand-patterns.png)
+
+*An anonymized illustration of the demand-pattern map. Every point represents a synthetic product series.*
+
 The goal was not simply to build a more sophisticated model. It was to produce forecasts that behaved sensibly enough to support real inventory decisions.
 
 ## Evaluating more than one number
 
-Aggregate error metrics are useful, but they can hide poor behaviour in individual product series. I therefore built tools for inspecting forecasts at a finer level, including dashboard-based series comparisons and blind tests of planner preferences.
+Aggregate error metrics are useful, but they can hide poor behaviour in individual product series. I therefore built an interactive series inspector that connected each point in the demand-pattern scatter to its underlying history and forecasts. It supported dashboard-based comparisons, blind tests of planner preferences, and closer review of series where models disagreed.
 
 This made it possible to examine forecast difficulty and certainty alongside metrics such as RMSE, mean absolute error, and bias. For most customer datasets, the proposed approaches improved aggregate MAE and bias while producing forecasts that were more operationally aligned than the baseline.
 
@@ -51,3 +61,7 @@ The internship reinforced that a forecasting model is only useful when its behav
 Some of the most productive work came from simplifying the problem: identifying which product series required different treatment, diagnosing unstable behaviour, and translating experimental results into practical recommendations. I presented those findings to Quiver’s CEO and CTO, and they helped inform further trials of a simpler, customer-tuned model.
 
 Coming from bioinformatics, I found the transition surprisingly natural. Both fields involve incomplete observations, noisy systems, careful validation, and the constant question of whether a detected pattern represents useful signal or merely a convincing accident.
+
+![Blind comparison after revealing the synthetic actual demand](/img/quiver-blind-forecast-after.png)
+
+*The actual demand is shown in black. No customer or product data are included.*
