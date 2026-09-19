@@ -17,6 +17,7 @@ Hej! I'm André Jørgensen, a bioinformatics engineer crafting reproducible HPC 
 
 ## Experience snapshots
 
+* **Data Science Intern, [Quiver](https://quiver.dk/) (March–June 2026)** — developed and evaluated product-level demand forecasting models, built reproducible Python experiments, and designed tools for assessing forecast accuracy and operational usefulness.
 * **Software development & bioinformatics projects (2018–present)** — designed Python/R/Snakemake workflows, containerized HPC deployments, antimicrobial resistance profiling, and benchmarking suites for alignment research.
 * **Volunteer & community initiatives** — Roskilde Festival, Bastard Café, Tårnby Teater youth instruction, DTU Board Game Club leadership.
 

@@ -22,6 +22,10 @@ I spend most of my time crafting Snakemake-driven workflows, wrangling container
 * **Reproducible HPC infrastructure** – packaging complex RNA/DNA analysis workflows so they run identically on DTU’s HPC, local workstations, and the cloud.
 * **Data storytelling** – translating statistical results into clear figures and short narratives for collaborators in evolutionary genomics.
 
+## Experience
+
+* **Data Science Intern, [Quiver](https://quiver.dk/) (March–June 2026)** – developed and evaluated product-level monthly demand forecasting models for inventory planning. Built a reproducible Python experimentation framework, tested gradient-boosting and deep-learning approaches for sparse demand, and created tools for series-level forecast assessment.
+
 ## Skills in practice
 
 * Languages & tooling: Python, R, Bash, SQL, Snakemake, Nextflow, Git.
