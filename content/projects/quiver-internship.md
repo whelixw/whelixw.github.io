@@ -1,6 +1,8 @@
 +++
 title = "Forecasting Sparse Demand at Quiver"
 date = 2026-09-19
+aliases = ["/blog/quiver-internship/"]
+template = "post.html"
 
 [taxonomies]
 categories = ["Work", "Data Science"]

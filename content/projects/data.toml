@@ -1,4 +1,6 @@
+# Dates record when each project write-up was published on this site.
 [[project]]
+date = "2024-08-20"
 name = "MSc Thesis — Optimizing Mitochondrial Genome Alignment with vgOrient"
 desc = "A progressive, graph-based tool designed to linearize circular mtDNA sequences to facilitate downstream analyses. By detecting and correcting misoriented or rotated genomes and identifying a common anchor region, vgOrient produces consistently oriented, linearized sequences. In comparisons with MARS across three datasets of varying complexity, vgOrient achieved equal or better alignment quality for reversed sequences and comparable performance on non-flipped data. These findings underscore vgOrient’s potential as a powerful solution for handling circular genomic data."
 tags = ["pangenomics", "genome variation graphs", "vg", "hpc", "mitochondria"]
@@ -9,10 +11,20 @@ links = [
   { name = "Thesis (PDF)", url = "/assets/thesis_final.pdf" }
 ]
 [[project]]
+date = "2025-12-11"
 name = "Wildfire Prediction Using Weather"
 desc = "A data-integration/machine learning project for predicting wildfires using two Kaggle datasets"
 tags = ["machine learning", "data integration", "gradient boosting", "wildfire", "weather"]
 img = "/img/wildfires.jpg"
 links = [
   { name = "Source", url = "https://github.com/whelixw/week_11_wildfire_prediction" },
+]
+[[project]]
+date = "2026-09-19"
+name = "Forecasting Sparse Demand at Quiver"
+desc = "During my Data Science internship at Quiver (March–June 2026), I built reproducible forecasting experiments, evaluated models for sparse product demand, and developed tools for inspecting forecast behaviour. The write-up describes my contributions and lessons learned using synthetic examples; customer data and internal code are not public."
+tags = ["time series", "demand forecasting", "machine learning", "Python"]
+img = "/img/quiver-demand-patterns.png"
+links = [
+  { name = "Project write-up", url = "/projects/quiver-internship/" },
 ]
