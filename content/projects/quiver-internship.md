@@ -18,12 +18,6 @@ The internship gave me an opportunity to work on a deceptively difficult problem
 
 *Two forecasts for a synthetic product series. Which one would you choose?*
 
-## Making experiments reproducible
-
-A central part of my work was building a reproducible Python experimentation framework for comparing forecasting approaches with Quiver’s production ETS baseline.
-
-Experiments were defined through configuration files and produced frozen configurations, predictions, and aggregate error metrics. This made it possible to benchmark models consistently across customers, validation folds, and data filters—and to return to an experiment later without having to reconstruct how it was run.
-
 ## Forecasting lumpy demand
 
 Sparse demand creates some awkward failure modes. A model may predict zero for too long, react too strongly to a single spike, or extrapolate a short-lived trend far into the future.
@@ -38,32 +32,42 @@ Average demand interval (ADI), measured here in months between non-zero observat
 
 The goal was not simply to build a more sophisticated model. It was to produce forecasts that behaved sensibly enough to support real inventory decisions.
 
+## Making experiments reproducible
+
+A central part of my work was building a reproducible Python experimentation framework for comparing forecasting approaches with Quiver’s production ETS baseline.
+
+Experiments were defined through configuration files and produced frozen configurations, predictions, and aggregate error metrics. This made it possible to benchmark models consistently across customers, validation folds, and data filters, and to return to an experiment later without having to reconstruct how it was run.
+
 ## Evaluating more than one number
 
-Aggregate error metrics are useful, but they can hide poor behaviour in individual product series. I therefore built an interactive series inspector that connected each point in the demand-pattern scatter to its underlying history and forecasts. It supported dashboard-based comparisons, blind tests of planner preferences, and closer review of series where models disagreed.
+Aggregate error metrics are useful, but they can hide poor behaviour in individual product series. I built an interactive series inspector that connected each point in the demand-pattern scatter to its underlying history and forecasts, making it easier to investigate where models disagreed.
 
-This made it possible to examine forecast difficulty and certainty alongside metrics such as RMSE, mean absolute error, and bias. For most customer datasets, the proposed approaches improved aggregate MAE and bias while producing forecasts that were more operationally aligned than the baseline.
+I also designed a dashboard for internal blind comparisons, following the before-and-after format illustrated in this post. Before revealing actual demand, the aim was to explore what made one forecast look more reasonable than another. After revealing actual demand, the question became how people judged forecast quality and how often those judgments agreed with RMSE, MAE, and bias. This helped us explore the relationship between a forecast looking sensible, matching observed demand, and scoring well on a particular metric.
+
+Once a candidate model passed the quantitative evaluation, we also loaded its forecasts into the planning frontend alongside the current production forecast. We often inspected some of the top products to assess which forecast seemed more reasonable in context, including whether it reacted excessively to isolated spikes or extended a short-lived trend too far.
+
+Together, these methods complemented the numerical benchmarks with closer scrutiny of forecast behaviour and human judgment.
+
+![Blind comparison after revealing the synthetic actual demand](/img/quiver-blind-forecast-after.png)
+
+*The actual demand is shown in black. Does seeing it change which forecast you prefer? No customer or product data are included.*
 
 ## Operational usefulness is the goal
 
-A lower RMSE is not automatically a better forecast. A model can reduce its average error while systematically forecasting too low, leaving a customer exposed to stockouts. Even a model that is unbiased in aggregate can behave poorly where it matters: overforecasting some products, underforecasting others, or failing to reflect growth that planners have good reason to expect.
+The comparisons raised three distinct questions: does a forecast look reasonable, does it score well against observed demand, and does it help someone make a better inventory decision? Agreement on the first two does not establish the third.
 
-That does not make the metric useless. It means the metric is evidence rather than the objective. The real question is whether a forecast helps the customer make better inventory decisions while behaving in ways they can inspect, challenge, and trust.
+A model can reduce average error while systematically forecasting too low, potentially leaving a customer exposed to stockouts. Even a model that is unbiased in aggregate can overforecast some products and underforecast others. The consequences depend on the products, the planning decisions, and the costs of getting those decisions wrong.
+
+Our evaluations helped assess whether a candidate deserved further trials. Establishing that it improved inventory outcomes would require evaluating the decisions made using those forecasts and their consequences.
 
 ## Complexity has a price
 
 More complex models can capture patterns that simpler models miss, but their benefits come with operational costs. They are often harder to explain when a customer asks why a forecast changed, and they may require more customer-specific tuning, monitoring, and maintenance.
 
-Reducing the number of questions or explanations a forecast generates can therefore be one sign that a model is working well—but it is not the only test. Complexity may still be worthwhile when it produces meaningfully better inventory decisions, handles important edge cases, or reduces costly forecast failures. The gain has to outweigh the full cost of deploying, maintaining, explaining, and adapting the model. If a more complicated approach improves a benchmark without improving that overall balance, the simpler model is probably more valuable.
+A model therefore needs to earn its complexity. Better handling of important demand patterns may justify the extra work, but a small benchmark improvement may not. The practical comparison includes the effort needed to deploy, explain, monitor, and adapt each approach.
 
 ## What I took away
-
-The internship reinforced that a forecasting model is only useful when its behaviour can be understood, evaluated, and connected to a decision. Accuracy, bias, planner expectations, explainability, and maintenance cost all contribute to that usefulness.
 
 Some of the most productive work came from simplifying the problem: identifying which product series required different treatment, diagnosing unstable behaviour, and translating experimental results into practical recommendations. I presented those findings to Quiver’s CEO and CTO, and they helped inform further trials of a simpler, customer-tuned model.
 
 Coming from bioinformatics, I found the transition surprisingly natural. Both fields involve incomplete observations, noisy systems, careful validation, and the constant question of whether a detected pattern represents useful signal or merely a convincing accident.
-
-![Blind comparison after revealing the synthetic actual demand](/img/quiver-blind-forecast-after.png)
-
-*The actual demand is shown in black. No customer or product data are included.*
