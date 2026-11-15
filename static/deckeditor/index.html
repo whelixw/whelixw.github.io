@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Draft and build your Magic deck in one workspace.">
+  <meta name="cubeapp-bridge" content="https://whelixw-phdk-bridge.onrender.com">
+  <title>Deckeditor — Draft Workbench</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="card-details.js" defer></script>
+  <script src="traps.js" defer></script>
+  <script src="arrange.js" defer></script>
+  <script src="app.js" defer></script>
+  <script src="live.js" defer></script>
+</head>
+<body>
+  <header class="top">
+    <h1>Deckeditor</h1>
+    <div class="actions">
+      <button id="restart">Restart draft</button>
+      <button id="undo" disabled>Undo move</button>
+      <button id="export" disabled>Export decklist</button>
+      <div class="sort-control" id="sort-control">
+        <button id="sort-cards" aria-expanded="false" aria-controls="sort-options" disabled>Sort selection ▾</button>
+        <div id="sort-options" class="sort-options" hidden>
+          <button data-sort="name">Name</button>
+          <button data-sort="color">Color</button>
+          <button data-sort="mana">Mana value</button>
+        </div>
+      </div>
+      <button id="live-open" hidden>Cubeapp</button>
+      <button id="search-open">Card search</button>
+    </div>
+  </header>
+  <div class="tab-bar">
+    <span class="active-tab" id="workspace-label">Practice draft</span>
+    <div class="progress" id="progress" aria-label="Pack progress"></div>
+    <div class="actions" id="complete-panel" hidden>
+      <strong>Draft complete</strong>
+      <button id="submit">Submit demo deck</button>
+    </div>
+  </div>
+  <main class="desktop">
+    <div class="table" id="table">
+      <section class="pane booster" id="draft-panel" aria-labelledby="booster-title">
+        <header class="pane-bar">
+          <h2 id="booster-title">Booster</h2><span id="pack-label"></span>
+          <div class="actions">
+            <span id="timer" aria-label="Time left"></span>
+            <button id="pick" disabled>Pick selected</button>
+          </div>
+        </header>
+        <div class="canvas pack" id="pack"></div>
+      </section>
+      <div id="zones"></div>
+      <div id="pool-divider" class="pane-divider" role="separator" aria-label="Resize Pool and deck panes" aria-orientation="horizontal" tabindex="0"></div>
+      <div id="deck-divider" class="pane-divider" role="separator" aria-label="Resize Main deck and Sideboard" aria-orientation="vertical" tabindex="0"></div>
+    </div>
+    <aside class="pane inspector" aria-labelledby="preview-title">
+      <header class="pane-bar"><h2 id="preview-title">Card View</h2></header>
+      <div class="preview-drawers" id="preview">
+        <section class="preview-drawer"><header><h3 id="preview-primary-title">Card</h3><button id="preview-inspect-trap" hidden>Inspect trap</button></header><div class="preview" id="preview-primary"><p>Hover over a card to preview it here.</p></div></section>
+        <section class="preview-drawer"><header><h3 id="preview-secondary-title">Details</h3><button id="preview-detail-toggle" hidden>Oracle text</button></header><div class="preview" id="preview-secondary"></div></section>
+      </div>
+    </aside>
+  </main>
+  <footer class="status-bar">
+    <span id="notice" role="status"></span>
+    <span id="pick-hint">Double-click to pick, or drag a card into a deck zone.</span>
+    <span id="arrange-hint">Drag from empty space to select. Click a card for actions.</span>
+    <span id="total"></span>
+  </footer>
+  <div id="selection-box" hidden aria-hidden="true"></div>
+  <div id="card-actions" class="sort-options" role="group" aria-label="Card actions" hidden>
+    <div id="card-action-move"></div>
+    <button type="button" id="card-action-unstack">Unstack selection</button>
+    <button type="button" id="card-action-trap">Expand trap</button>
+    <div id="card-action-options"></div>
+    <button type="button" id="card-action-collapse">Collapse trap</button>
+    <button type="button" id="card-action-remove-basic">Remove added basic</button>
+    <button type="button" data-sort="name">Sort by name</button>
+    <button type="button" data-sort="color">Sort by color</button>
+    <button type="button" data-sort="mana">Sort by mana value</button>
+  </div>
+  <dialog id="live-dialog" aria-labelledby="live-title">
+    <header class="pane-bar"><h2 id="live-title">Prohunterdogkeeper</h2><button id="live-close" aria-label="Close connection panel">Close</button></header>
+    <div class="live-body">
+      <p id="live-status" role="status"></p>
+      <form id="live-login">
+        <label>Username <input name="username" required autocomplete="username"></label>
+        <label>Password <input name="password" type="password" required autocomplete="current-password"></label>
+        <button>Sign in</button>
+      </form>
+      <section class="live-section" aria-labelledby="lobbies-title">
+        <header><h3 id="lobbies-title">Current draft lobbies</h3><button id="live-lobbies-reconnect" hidden>Reconnect</button></header>
+        <p id="live-lobbies-status" role="status">Sign in to see current lobbies.</p>
+        <div id="live-lobbies" class="live-list"></div>
+      </section>
+      <section class="live-section" aria-labelledby="pools-title">
+        <header><h3 id="pools-title">My limited pools</h3><button id="live-pools-refresh" hidden>Refresh</button></header>
+        <p id="live-pools-status" role="status">Sign in to browse your draft and sealed pools.</p>
+        <div id="live-pools" class="live-list"></div>
+        <button id="live-pools-more" hidden>Show older events</button>
+      </section>
+      <details class="live-section">
+        <summary>Open by ID or seat key</summary>
+        <form id="live-pool">
+          <label>Limited pool ID <input name="pool" type="number" min="1" step="1" required></label>
+          <button>Open pool</button>
+        </form>
+        <form id="live-seat">
+          <label>Draft seat key <input name="seat" pattern="[a-fA-F0-9\-]+" required></label>
+          <button>Open draft</button>
+        </form>
+      </details>
+      <button id="live-demo">Return to practice draft</button>
+    </div>
+  </dialog>
+  <dialog id="search-dialog" aria-labelledby="search-title">
+    <header class="pane-bar"><h2 id="search-title">Card search</h2><form method="dialog"><button>Close</button></form></header>
+    <div class="live-body">
+      <form id="live-search">
+        <label>Card name <input name="card" required placeholder="Delver of Secrets"></label>
+        <button>Find card</button>
+      </form>
+      <p id="basic-status"></p>
+      <div id="basic-shortcuts" class="live-list"></div>
+      <p id="search-status" role="status"></p>
+      <div id="live-results" class="live-list"></div>
+    </div>
+  </dialog>
+  <dialog id="trap-dialog" aria-labelledby="trap-title">
+    <header class="pane-bar"><h2 id="trap-title">Trap contents</h2><form method="dialog"><button>Close</button></form></header>
+    <div id="trap-tree" class="live-body"></div>
+  </dialog>
+</body>
+</html>
