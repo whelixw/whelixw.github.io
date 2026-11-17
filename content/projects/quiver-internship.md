@@ -8,66 +8,36 @@ template = "post.html"
 categories = ["Work", "Data Science"]
 +++
 
-From March to June 2026, I worked as a Data Science Intern at [Quiver](https://quiver.dk/), developing and evaluating demand-forecasting methods for inventory planning.
-
-The internship gave me an opportunity to work on a deceptively difficult problem: forecasting monthly demand at the individual product level, where sales histories are often sparse, irregular, and punctuated by sudden spikes.
+From March to June 2026, I worked as a Data Science Intern at Quiver, developing and evaluating monthly product-level demand forecasts for inventory planning. Many products sold irregularly, with long gaps between sales or occasional spikes. A forecast could react too strongly to one spike, carry a short-lived trend too far, or stay at zero for too long.
 
 <!-- more -->
 
-![Blind comparison between two synthetic forecasts before actual demand is revealed](/img/quiver-blind-forecast-before.png)
+## Building a reproducible comparison
 
-*Two forecasts for a synthetic product series. Which one would you choose?*
+I built a Python experimentation framework to compare candidate models with Quiver’s production exponential smoothing (ETS) baseline. Each experiment saved the configuration it ran with, the predictions, and aggregate error metrics. This let me compare approaches across customers, validation periods, and data filters, then return to an individual forecast when a result needed investigation.
 
-## Forecasting lumpy demand
+I tested gradient-boosting models with lagged demand, rolling statistics, and seasonal features. I also explored DeepAR, product hierarchies, routing logic for sparse series, and regression strategies based on product size.
 
-Sparse demand creates some awkward failure modes. A model may predict zero for too long, react too strongly to a single spike, or extrapolate a short-lived trend far into the future.
+## Finding where models disagreed
 
-I developed and tested gradient-boosting models using lagged values, rolling-window statistics, and seasonal features. I also explored DeepAR and product-hierarchy setups, alongside routing logic for sparse series and regression strategies based on product size.
+Aggregate scores could tell me how a model performed across a set of products. To understand where it struggled, I looked at two properties of each series. Average demand interval (ADI) describes how often positive demand occurs. The squared coefficient of variation (CV²) describes how much demand varies across the periods when it is positive. Together, these measures distinguish smooth, erratic, intermittent, and lumpy series.
 
-Average demand interval (ADI), measured here in months between non-zero observations, and demand variation provided a useful map of the problem. They helped distinguish smooth and erratic demand from intermittent and lumpy series, where the same forecasting policy often behaved very differently.
+At Quiver, I measured ADI in months. The chart below illustrates the same method using 365 days of public Walmart sales, so ADI is measured in days. Each point represents one item at one store.
 
-![Synthetic demand-pattern scatter showing smooth, erratic, intermittent, and lumpy product series](/img/quiver-demand-patterns.png)
+![Demand-pattern scatter for 281 M5 item–store series. The highlighted item falls in the smooth segment, with an ADI of 1.02 days and a CV² of 0.34.](/img/quiver-m5-demand-patterns.png)
 
-*An anonymized illustration of the demand-pattern map. Every point represents a synthetic product series.*
+*The highlighted item sold on nearly every day in the period, placing it in the smooth segment at daily frequency.*
 
-The goal was not simply to build a more sophisticated model. It was to produce forecasts that behaved sensibly enough to support real inventory decisions.
+In Quiver’s internal series inspector, I could select a point on a demand map and open the corresponding product’s sales history and forecasts. That made it easier to see which products drove a difference in scores and examine what each model was doing on those series.
 
-## Making experiments reproducible
+## Comparing forecasts in context
 
-A central part of my work was building a reproducible Python experimentation framework for comparing forecasting approaches with Quiver’s production ETS baseline.
+I also designed an internal dashboard for blind comparisons. We first judged which forecast looked more plausible given the history, then revealed observed demand and compared our judgments with mean absolute error, root mean squared error, and bias. You can try the same format in [Which Forecast Would You Choose?](/blog/which-forecast-would-you-choose/).
 
-Experiments were defined through configuration files and produced frozen configurations, predictions, and aggregate error metrics. This made it possible to benchmark models consistently across customers, validation folds, and data filters, and to return to an experiment later without having to reconstruct how it was run.
+When a candidate passed the quantitative evaluation, we loaded its forecasts into the planning frontend alongside the production forecast. We reviewed individual products there and looked for behaviour such as an outsized response to a single spike or the continuation of a trend that had already faded.
 
-## Evaluating more than one number
+## From forecast scores to inventory decisions
 
-Aggregate error metrics are useful, but they can hide poor behaviour in individual product series. I built an interactive series inspector that connected each point in the demand-pattern scatter to its underlying history and forecasts, making it easier to investigate where models disagreed.
+Forecast error matters through the replenishment decisions it informs. Repeatedly forecasting too low can leave a customer exposed to stockouts. Forecasting too high can tie up cash in inventory. The consequences depend on the product and how the planner uses the forecast. More complex models can also require more tuning, monitoring, and maintenance.
 
-I also designed a dashboard for internal blind comparisons, following the before-and-after format illustrated in this post. Before revealing actual demand, the aim was to explore what made one forecast look more reasonable than another. After revealing actual demand, the question became how people judged forecast quality and how often those judgments agreed with RMSE, MAE, and bias. This helped us explore the relationship between a forecast looking sensible, matching observed demand, and scoring well on a particular metric.
-
-Once a candidate model passed the quantitative evaluation, we also loaded its forecasts into the planning frontend alongside the current production forecast. We often inspected some of the top products to assess which forecast seemed more reasonable in context, including whether it reacted excessively to isolated spikes or extended a short-lived trend too far.
-
-Together, these methods complemented the numerical benchmarks with closer scrutiny of forecast behaviour and human judgment.
-
-![Blind comparison after revealing the synthetic actual demand](/img/quiver-blind-forecast-after.png)
-
-*The actual demand is shown in black. Does seeing it change which forecast you prefer? No customer or product data are included.*
-
-## Operational usefulness is the goal
-
-The comparisons raised three distinct questions: does a forecast look reasonable, does it score well against observed demand, and does it help someone make a better inventory decision? Agreement on the first two does not establish the third.
-
-A model can reduce average error while systematically forecasting too low, potentially leaving a customer exposed to stockouts. Even a model that is unbiased in aggregate can overforecast some products and underforecast others. The consequences depend on the products, the planning decisions, and the costs of getting those decisions wrong.
-
-Our evaluations helped assess whether a candidate deserved further trials. Establishing that it improved inventory outcomes would require evaluating the decisions made using those forecasts and their consequences.
-
-## Complexity has a price
-
-More complex models can capture patterns that simpler models miss, but their benefits come with operational costs. They are often harder to explain when a customer asks why a forecast changed, and they may require more customer-specific tuning, monitoring, and maintenance.
-
-A model therefore needs to earn its complexity. Better handling of important demand patterns may justify the extra work, but a small benchmark improvement may not. The practical comparison includes the effort needed to deploy, explain, monitor, and adapt each approach.
-
-## What I took away
-
-Some of the most productive work came from simplifying the problem: identifying which product series required different treatment, diagnosing unstable behaviour, and translating experimental results into practical recommendations. I presented those findings to Quiver’s CEO and CTO, and they helped inform further trials of a simpler, customer-tuned model.
-
-Coming from bioinformatics, I found the transition surprisingly natural. Both fields involve incomplete observations, noisy systems, careful validation, and the constant question of whether a detected pattern represents useful signal or merely a convincing accident.
+Looking closely at model disagreements helped me identify products that might benefit from different treatment and cases where a simpler approach deserved further trials. I presented my findings to Quiver’s CEO and CTO, and the work helped inform further trials of a simpler, customer-tuned model.
