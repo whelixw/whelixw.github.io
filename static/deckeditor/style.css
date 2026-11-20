@@ -246,9 +246,15 @@ button:not(:disabled):hover { border-color: var(--accent); }
 #search-dialog { max-height: 90dvh; }
 .trap-art-group { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; min-width: 0; border: 3px solid; padding: 2px; box-sizing: border-box; }
 .trap-art-all { border-color: #000; }
-.trap-art-any { border-color: #aaa; }
-.trap-group-children { display: grid; grid-auto-rows: minmax(0, 1fr); flex: 1; min-height: 0; min-width: 0; gap: 1px; }
-.trap-art-strip > .trap-art-group { border-block: 0; padding: 0; }
+.trap-art-any {
+  /* Keep the inset, line, and artwork padding inside one parent grid slot. */
+  margin-left: 6px;
+  border: 0;
+  border-left: 4px solid #aaa;
+  padding: 0 0 0 4px;
+}
+.trap-group-children { display: grid; grid-auto-rows: minmax(0, 1fr); flex: 1; min-height: 0; min-width: 0; gap: 1px; overflow: hidden; }
+.trap-art-strip > .trap-art-all { border-block: 0; padding: 0; }
 .trap-art-component { position: relative; display: block; width: 100%; padding: 0; border: 0; border-radius: 0; flex: 1 1 0; min-width: 0; min-height: 0; overflow: hidden; background: var(--canvas); }
 .trap-art-option { display: flex; min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 0; overflow: hidden; background: transparent; }
 .trap-art-option:hover, .trap-art-option:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
