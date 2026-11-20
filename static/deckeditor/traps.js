@@ -57,6 +57,19 @@ function isTrapChoice(id) {
   return traps.get(id)?.option === true;
 }
 
+function setTrapChoosing(row, enabled) {
+  if (!row) return;
+  row.classList.toggle("choosing-trap", enabled);
+  if (enabled) row.dataset.choosingTrap = "true";
+  else delete row.dataset.choosingTrap;
+  row.querySelector(".choose-trap")?.setAttribute("aria-pressed", String(enabled));
+  for (const option of row.querySelectorAll("[data-trap-option]")) {
+    const summary = option.dataset.trapOptionLabel;
+    option.setAttribute("aria-label", enabled ? `Choose ${summary}` : `${summary} · click for actions`);
+    option.title = enabled ? `Choose ${summary}` : `${summary} · Shift-click to choose; click for actions`;
+  }
+}
+
 function trapComponentSelector(id) {
   const { tree } = traps.get(id);
   if (!trapComponents(tree).length) return "";
@@ -69,8 +82,13 @@ function trapComponentSelector(id) {
 
 function trapTile(member) {
   if (member === undefined) return "";
-  const image = cardInfo(member).faces[0]?.image;
-  return image ? `<img src="${escapeHtml(image)}" alt="" draggable="false" loading="lazy">` : "";
+  const face = cardInfo(member).faces[0];
+  if (!face?.image) return "";
+  // Cubeapp uses the reference's layout-aware artwork crop (including split cards).
+  if (face.artImage) return `<img class="trap-artwork" src="${escapeHtml(face.artImage)}" alt="" draggable="false" loading="lazy">`;
+  // Practice images are full faces. Match mtgimg's standard artwork rectangle,
+  // then center-crop that rectangle to the strip, never the whole card face.
+  return `<svg class="trap-artwork" viewBox="92 120 560 435" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><image href="${escapeHtml(face.image)}" width="745" height="1040" preserveAspectRatio="none"></image></svg>`;
 }
 
 function trapArtTree(node, interactive = false, count = 1, parentType = null, chooseRoot = false) {
@@ -79,7 +97,7 @@ function trapArtTree(node, interactive = false, count = 1, parentType = null, ch
     const content = `${trapTile(node)}<span>${name}</span>`;
     return interactive
       ? `<button type="button" class="trap-art-component" data-component="${node}" title="${name}" aria-label="Preview ${name}">${content}</button>`
-      : `<span class="trap-art-component">${content}</span>`;
+      : `<span class="trap-art-component" data-component="${node}">${content}</span>`;
   }
   const [type, children] = node;
   const any = type === "AnyNode";
@@ -89,7 +107,7 @@ function trapArtTree(node, interactive = false, count = 1, parentType = null, ch
       if (!chooseRoot) return trapArtTree(child, interactive, any ? 1 : quantity, type);
       const member = trapComponents(child)[0];
       const summary = escapeHtml(trapSummary(child));
-      return `<button type="button" class="trap-art-option" data-trap-option="${index}" ${member === undefined ? "" : `data-component="${member}"`} title="${summary} · Shift-click to choose; click for actions" aria-label="${summary} · click for actions">${trapArtTree(child, false, 1, type)}</button>`;
+      return `<button type="button" class="trap-art-option" data-trap-option="${index}" data-trap-option-label="${summary}" ${member === undefined ? "" : `data-component="${member}"`} title="${summary} · Shift-click to choose; click for actions" aria-label="${summary} · click for actions">${trapArtTree(child, false, 1, type)}</button>`;
     }).join("")}</span>
   </span>`;
 }

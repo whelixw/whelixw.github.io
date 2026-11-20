@@ -15,6 +15,164 @@ let poolsOffset = 0;
 let poolsLoading = false;
 let lobbiesAuthenticated = false;
 let editingLobby = null;
+let hostCubes = [];
+let hostLoad = 0;
+let hostLoading = false;
+let hostSubmitting = false;
+
+function hostField(name) { return $("live-host-form").elements.namedItem(name); }
+
+function hostSelect(name, entries, placeholder) {
+  const select = hostField(name);
+  const option = (value, label) => {
+    const node = document.createElement("option");
+    node.value = String(value); node.textContent = label;
+    return node;
+  };
+  select.replaceChildren(option("", placeholder), ...entries.map(([value, label]) => option(value, label)));
+  select.value = "";
+}
+
+function updateHostValidity() {
+  const form = $("live-host-form");
+  const valid = (key, max) => { const n = Number(hostField(key).value); return Number.isSafeInteger(n) && n >= 1 && n <= max; };
+  $("live-host-submit").disabled = hostLoading || hostSubmitting || !lobbiesAuthenticated
+    || !valid("release", Number.MAX_SAFE_INTEGER) || !valid("amount", 127) || !valid("pack_size", 360)
+    || (!editingLobby && !hostField("cube").value) || !form.checkValidity();
+}
+
+function savedHostRelease() {
+  const spec = lobbies.get(editingLobby)?.game_options?.pool_specification?.[0];
+  return spec ? String(spec.release?.id ?? spec.release) : null;
+}
+
+function updateHostTimer() {
+  hostField("time_control").disabled = !hostField("use_time_controls").checked;
+}
+
+function clearHostCube() {
+  hostSelect("release", [], "Choose a cube first");
+  hostField("release").disabled = true;
+  for (const key of ["amount", "pack_size"]) {
+    hostField(key).value = ""; hostField(key).disabled = true;
+  }
+}
+
+function sortedHostReleases(cube) {
+  return [...(cube.releases || [])].sort((a, b) =>
+    (Date.parse(b.created_at) || 0) - (Date.parse(a.created_at) || 0) || Number(b.id) - Number(a.id));
+}
+
+// The API exposes saved configurations through limited sessions, not cube defaults.
+// Scan in server date order, across pages; never substitute global draft defaults.
+async function latestHostSettings(cube, current = () => true) {
+  const releases = new Set(cube.releases.map(({ id }) => String(id)));
+  for (let offset = 0; current();) {
+    const page = await cubeRequest(`limited/sessions/?game_type_filter=draft&sort_key=created_at&ascending=false&limit=100&offset=${offset}`);
+    const sessions = page.results || [];
+    for (const session of sessions) {
+      const specs = session.pool_specification?.specifications || [];
+      const matches = specs.filter((spec) => releases.has(String(spec.release?.id ?? spec.release)));
+      if (!matches.length) continue;
+      // A mixed configuration cannot be represented faithfully by this form.
+      if (specs.length !== 1 || !Number.isInteger(matches[0].amount) || !Number.isInteger(matches[0].size)
+        || matches[0].amount < 1 || matches[0].amount > 127 || matches[0].size < 1 || matches[0].size > 360) return null;
+      return { ...matches[0], session: session.name || `#${session.id}` };
+    }
+    offset += sessions.length;
+    if (!sessions.length || (page.count !== undefined ? offset >= page.count : !page.next)) return null;
+  }
+  return null;
+}
+
+async function selectHostCube() {
+  const generation = ++hostLoad;
+  clearHostCube();
+  // Sampling flags are cube-specific too; discard values from the previous cube.
+  for (const key of ["allow_repeat", "allow_intersection"]) hostField(key).checked = false;
+  const cube = hostCubes.find(({ id }) => String(id) === hostField("cube").value);
+  hostLoading = Boolean(cube);
+  updateHostValidity();
+  if (!cube) {
+    $("live-host-cube-status").textContent = "Choose a cube to load releases and saved draft settings.";
+    return;
+  }
+  const current = () => generation === hostLoad;
+  const releases = sortedHostReleases(cube);
+  hostSelect("release", releases.map((release) => [release.id,
+    `${release.name || `Release ${release.id}`} · ${release.created_at?.slice(0, 10) || "Date unavailable"}`]), "Choose a release");
+  hostField("release").value = String(releases[0]?.id || "");
+  hostField("release").disabled = !releases.length;
+  $("live-host-cube-status").textContent = releases.length ? "Loading this cube's saved draft settings…" : "This cube has no releases. Choose another cube.";
+  try {
+    if (!releases.length) return;
+    const settings = await latestHostSettings(cube, current);
+    if (!current()) return;
+    if (settings) {
+      hostField("amount").value = settings.amount;
+      hostField("pack_size").value = settings.size;
+      for (const key of ["allow_repeat", "allow_intersection"]) hostField(key).checked = Boolean(settings[key]);
+    }
+    $("live-host-cube-status").textContent = settings
+      ? `Pack settings from the most recent saved draft: ${settings.session}. You can edit them.`
+      : "No usable saved draft settings for this cube. Enter packs per player and cards per pack.";
+  } catch (error) {
+    if (current()) $("live-host-cube-status").textContent = `Could not load saved settings: ${error.message}. Enter pack settings explicitly, or reload cubes to retry.`;
+  } finally {
+    if (current()) {
+      hostLoading = false;
+      for (const key of ["amount", "pack_size"]) hostField(key).disabled = !releases.length;
+      updateHostValidity();
+    }
+  }
+}
+
+async function loadHostCubes(lobby = null) {
+  const generation = ++hostLoad;
+  hostLoading = true;
+  hostField("cube").disabled = true;
+  // Saved lobby fields stay intact even if the catalog cannot be loaded.
+  if (!lobby) { clearHostCube(); hostSelect("cube", [], "Loading cubes…"); }
+  updateHostValidity();
+  $("live-host-cube-status").textContent = "Loading cubes…";
+  try {
+    const cubes = [];
+    for (let offset = 0;;) {
+      const page = await cubeRequest(`versioned-cubes/?limit=100&offset=${offset}`);
+      if (generation !== hostLoad) return;
+      const rows = page.results || [];
+      cubes.push(...rows); offset += rows.length;
+      if (!rows.length || (page.count !== undefined ? offset >= page.count : !page.next)) break;
+    }
+    hostCubes = cubes;
+    hostSelect("cube", cubes.map(({ id, name }) => [id, name || `Cube ${id}`]), "Choose a cube");
+    if (lobby) {
+      const spec = lobby.game_options.pool_specification[0];
+      const releaseId = String(spec.release?.id ?? spec.release);
+      const cube = cubes.find((cube) => cube.releases.some(({ id }) => String(id) === releaseId));
+      if (cube) {
+        hostField("cube").value = String(cube.id);
+        hostSelect("release", sortedHostReleases(cube).map((release) => [release.id,
+          `${release.name || `Release ${release.id}`} · ${release.created_at?.slice(0, 10) || "Date unavailable"}`]), "Choose a release");
+        hostField("release").value = releaseId;
+        hostField("release").disabled = false;
+      } else {
+        // Keep an older/private saved release editable even when absent from the catalog.
+        const option = document.createElement("option");
+        option.value = "saved"; option.textContent = "Saved cube (unavailable in catalog)";
+        hostField("cube").append(option); hostField("cube").value = "saved";
+      }
+      $("live-host-cube-status").textContent = "Saved lobby settings preserved. Changing cubes loads that cube's latest draft settings.";
+    } else {
+      $("live-host-cube-status").textContent = cubes.length ? "Choose a cube to load releases and saved draft settings." : "No cubes found. Reload cubes to try again.";
+    }
+    hostField("cube").disabled = !cubes.length;
+  } catch (error) {
+    if (generation === hostLoad) $("live-host-cube-status").textContent = `Could not load cubes: ${error.message}. Reload cubes to retry.${lobby ? " Saved lobby settings preserved." : ""}`;
+  } finally {
+    if (generation === hostLoad) { hostLoading = false; updateHostValidity(); }
+  }
+}
 
 function lobbyStatus(message) {
   $("live-lobbies-status").textContent = message;
@@ -41,7 +199,8 @@ function hostDraftOptions(fields) {
       amount: hostNumber(fields, "amount", 1, 127), size: hostNumber(fields, "pack_size", 1, 360),
       allow_repeat: Boolean(fields.allow_repeat), allow_intersection: Boolean(fields.allow_intersection), scale: false,
     }],
-    use_time_controls: Boolean(fields.use_time_controls), time_control: hostNumber(fields, "time_control", 1, 3600),
+    use_time_controls: Boolean(fields.use_time_controls),
+    time_control: fields.use_time_controls ? hostNumber(fields, "time_control", 1, 3600) : 0,
   };
 }
 
@@ -49,16 +208,23 @@ function editHostedLobby(lobby = null) {
   editingLobby = lobby?.name || null;
   const form = $("live-host-form");
   form.reset();
+  clearHostCube();
   const fields = form.elements;
   fields.namedItem("name").value = lobby?.name || "";
   fields.namedItem("name").disabled = Boolean(lobby);
   $("live-host-lobby-options").disabled = Boolean(lobby);
   if (lobby) {
+    for (const key of ["size", "minimum_size"]) fields.namedItem(key).value = lobby.lobby_options?.[key] ?? "";
+    fields.namedItem("require_ready").checked = Boolean(lobby.lobby_options?.require_ready);
     const options = lobby.game_options;
     const spec = options.pool_specification[0];
-    const values = { release: typeof spec.release === "object" ? spec.release.id : spec.release,
-      amount: spec.amount, pack_size: spec.size, time_control: options.time_control || 60 };
+    const releaseId = typeof spec.release === "object" ? spec.release.id : spec.release;
+    hostSelect("release", [[releaseId, spec.release?.name || `Saved release ${releaseId}`]], "Choose a release");
+    fields.namedItem("release").disabled = false;
+    fields.namedItem("release").value = String(releaseId);
+    const values = { amount: spec.amount, pack_size: spec.size, time_control: options.time_control || 60 };
     for (const [key, value] of Object.entries(values)) fields.namedItem(key).value = value;
+    for (const key of ["amount", "pack_size"]) fields.namedItem(key).disabled = false;
     for (const key of ["use_time_controls", "allow_repeat", "allow_intersection"]) {
       fields.namedItem(key).checked = Boolean(key === "use_time_controls" ? options[key] : spec[key]);
     }
@@ -67,17 +233,28 @@ function editHostedLobby(lobby = null) {
   $("live-host-cancel").hidden = !lobby;
   $("live-host-status").textContent = lobby ? `Editing ${lobby.name}. Settings changes reset readiness.` : "";
   $("live-host").open = true;
+  updateHostTimer();
+  return loadHostCubes(lobby);
 }
 
 async function submitHostedDraft(fields) {
   const editing = editingLobby;
-  const options = hostDraftOptions(fields);
+  const generation = hostLoad;
+  if (hostLoading) throw new Error("Wait for cube settings to finish loading.");
+  if (fields.cube !== undefined) {
+    const cube = hostCubes.find(({ id }) => String(id) === fields.cube);
+    const saved = editing && fields.cube === "saved" && fields.release === savedHostRelease();
+    if (!saved && !cube?.releases.some(({ id }) => String(id) === fields.release)) throw new Error("Choose a release belonging to the selected cube.");
+  }
+  let options = hostDraftOptions(fields);
   const name = editingLobby || fields.name?.trim();
   if (!/^[a-z0-9_]{1,80}$/i.test(name || "")) throw new Error("Use letters, numbers, and underscores for the lobby name.");
   let lobbyOptions;
   if (editingLobby) {
     const lobby = lobbies.get(editingLobby);
     if (!lobby || lobby.owner !== account?.user.username || lobby.state !== "pre-game") throw new Error("This lobby is no longer available for editing.");
+    const saved = lobby.game_options;
+    if (saved) options = { ...saved, ...options, pool_specification: [{ ...saved.pool_specification[0], ...options.pool_specification[0] }] };
   } else {
     const size = hostNumber(fields, "size", 2, 64);
     const minimum_size = hostNumber(fields, "minimum_size", 2, size);
@@ -86,6 +263,7 @@ async function submitHostedDraft(fields) {
   }
   // Creation silently drops invalid options upstream, so check the release first.
   await cubeRequest(`cube-releases/${options.pool_specification[0].release}/`);
+  if (generation !== hostLoad || editing !== editingLobby) throw new Error("Draft settings changed. Review them before submitting again.");
   if (editing) {
     const lobby = lobbies.get(editing);
     if (!lobby || lobby.owner !== account?.user.username || lobby.state !== "pre-game") throw new Error("This lobby is no longer available for editing.");
@@ -126,15 +304,17 @@ function liveForm(id, handler, report = liveStatus) {
   $(id).addEventListener("submit", async (event) => {
     event.preventDefault();
     const form = event.currentTarget;
-    const button = form.querySelector("button");
+    const button = form.querySelector('button[type="submit"]') || form.querySelector("button");
     const fields = Object.fromEntries(new FormData(form));
     button.disabled = true;
+    if (id === "live-host-form") hostSubmitting = true;
     try {
       await handler(fields);
     } catch (error) {
       report(error.message);
     } finally {
       button.disabled = false;
+      if (id === "live-host-form") { hostSubmitting = false; updateHostValidity(); }
     }
   });
 }
@@ -142,7 +322,7 @@ function liveForm(id, handler, report = liveStatus) {
 function remotePrinting(printing) {
   const id = `p${printing.id}`;
   const old = remoteCards.get(id);
-  const image = (back) => `${bridgeOrigin}/cubeapp/api/images/${printing.id}/?size_slug=medium&back=${Number(back)}`;
+  const image = (back, cropped = false) => `${bridgeOrigin}/cubeapp/api/images/${printing.id}/?size_slug=medium&back=${Number(back)}${cropped ? "&cropped=1" : ""}`;
   const face = (items, back) => ({
     name: items.map(({ name }) => name).join(" // "),
     mana: items.map((card) => card.mana_cost?.str).filter(Boolean).join(" // "),
@@ -150,6 +330,7 @@ function remotePrinting(printing) {
     oracle: items.map((card) => card.oracle_text).filter(Boolean).join("\n\n"),
     stats: items.map((card) => card.power_toughness?.str).filter(Boolean).join(" // "),
     image: image(back),
+    artImage: image(back, true),
   });
   const cardboard = printing.cardboard;
   const front = cardboard?.front_cards || [];
@@ -159,7 +340,7 @@ function remotePrinting(printing) {
   const type = printing.types?.join(" ") || front[0]?.type_line?.line || old?.type || "";
   const faces = front.length
     ? [face(front, false), ...(back.length ? [face(back, true)] : [])]
-    : old?.faces || [{ name, type, image: image(false), oracle: "Rules text has not loaded for this printing." }];
+    : old?.faces || [{ name, type, image: image(false), artImage: image(false, true), oracle: "Rules text has not loaded for this printing." }];
   remoteCards.set(id, {
     name,
     expansion: printing.expansion?.code || old?.expansion,
@@ -544,7 +725,8 @@ function connectLobbies() {
     if (message.type === "all_lobbies") {
       lobbiesAuthenticated = true;
       $("live-host").hidden = false;
-      $("live-host-submit").disabled = false;
+      if (!hostCubes.length && !hostLoading) editHostedLobby();
+      else updateHostValidity();
       lobbies.clear();
       for (const lobby of message.lobbies) lobbies.set(lobby.name, lobby);
     } else if (message.type === "lobby_closed") {
@@ -624,6 +806,13 @@ async function loadPoolEvents(reset = false) {
 $("live-lobbies-reconnect").addEventListener("click", connectLobbies);
 liveForm("live-host-form", submitHostedDraft, (message) => { $("live-host-status").textContent = message; });
 $("live-host-cancel").addEventListener("click", () => editHostedLobby());
+$("live-host-reload").addEventListener("click", () => loadHostCubes(editingLobby ? lobbies.get(editingLobby) : null));
+$("live-host-form").addEventListener("input", updateHostValidity);
+$("live-host-form").addEventListener("change", (event) => {
+  if (event.target.name === "cube") selectHostCube();
+  if (event.target.name === "use_time_controls") updateHostTimer();
+  updateHostValidity();
+});
 $("live-pools-refresh").addEventListener("click", () => loadPoolEvents(true));
 $("live-pools-more").addEventListener("click", () => loadPoolEvents());
 

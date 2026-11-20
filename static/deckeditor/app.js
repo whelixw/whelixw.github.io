@@ -55,7 +55,7 @@ function cardFace(id, deck = false) {
 }
 
 function useImageFallback(container) {
-  for (const img of container.querySelectorAll("img")) {
+  for (const img of container.querySelectorAll("img, .trap-artwork image")) {
     img.addEventListener("error", () => img.remove(), { once: true });
     if (img.complete && !img.naturalWidth) img.remove();
   }
@@ -325,6 +325,7 @@ function renderEditor() {
       return `<div class="card${chosenCards.has(String(id)) ? " chosen" : ""}" tabindex="0" aria-label="${escapeHtml(name)}" draggable="true" data-pick="${id}" data-preview="${cardId}">
         ${cardFace(cardId, true)}
         ${trap && !isTrapChoice(cardId) ? '<button type="button" class="inspect-trap" title="Expand this trap into deck cards">Expand</button>' : ""}
+        ${isTrapChoice(cardId) ? '<button type="button" class="choose-trap" aria-pressed="false" title="Show names and choose a component; leaving the card cancels">Choose</button>' : ""}
         <button type="button" class="card-menu-toggle" aria-label="Selection actions" aria-haspopup="true" aria-expanded="false" aria-controls="card-actions"></button>
       </div>`;
     }

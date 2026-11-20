@@ -6,16 +6,16 @@
   <meta name="description" content="Draft and build your Magic deck in one workspace.">
   <meta name="cubeapp-bridge" content="https://whelixw-phdk-bridge.onrender.com">
   <title>Deckeditor — Draft Workbench</title>
-  <link rel="stylesheet" href="style.css?v=20261120-insetline">
-  <script src="card-details.js?v=20261120-insetline" defer></script>
-  <script src="traps.js?v=20261120-insetline" defer></script>
-  <script src="arrange.js?v=20261120-insetline" defer></script>
-  <script src="editor-history.js?v=20261120-insetline" defer></script>
-  <script src="layouts.js?v=20261120-insetline" defer></script>
-  <script src="history.js?v=20261120-insetline" defer></script>
-  <script src="app.js?v=20261120-insetline" defer></script>
-  <script src="live.js?v=20261120-insetline" defer></script>
-  <script src="export.js?v=20261120-insetline" defer></script>
+  <link rel="stylesheet" href="style.css?v=20261120-artwork-choose">
+  <script src="card-details.js?v=20261120-artwork-choose" defer></script>
+  <script src="traps.js?v=20261120-artwork-choose" defer></script>
+  <script src="arrange.js?v=20261120-artwork-choose" defer></script>
+  <script src="editor-history.js?v=20261120-artwork-choose" defer></script>
+  <script src="layouts.js?v=20261120-artwork-choose" defer></script>
+  <script src="history.js?v=20261120-artwork-choose" defer></script>
+  <script src="app.js?v=20261120-artwork-choose" defer></script>
+  <script src="live.js?v=20261120-artwork-choose" defer></script>
+  <script src="export.js?v=20261120-artwork-choose" defer></script>
 </head>
 <body>
   <header class="top">
@@ -133,16 +133,22 @@
               <legend>Players</legend>
               <label>Maximum <input name="size" type="number" min="2" max="64" value="8" required></label>
               <label>Minimum to start <input name="minimum_size" type="number" min="2" max="64" value="2" required></label>
-              <label><input name="require_ready" type="checkbox" checked> Require everyone ready</label>
+              <label class="host-check"><input name="require_ready" type="checkbox" checked aria-describedby="ready-help"> Require everyone ready</label>
+              <small id="ready-help">Start only when all joined players are ready and the minimum player count is met.</small>
             </fieldset>
-            <label>Cube release ID <input name="release" type="number" min="1" step="1" required></label>
-            <p>Use the release number from the cube's release page on Cubeapp. Drafts use standard single picks and the event's basic lands.</p>
-            <label>Packs per player <input name="amount" type="number" min="1" max="127" value="3" required></label>
-            <label>Cards per pack <input name="pack_size" type="number" min="1" max="360" value="15" required></label>
-            <label><input name="use_time_controls" type="checkbox"> Use pick timer</label>
-            <label>Seconds per pick <input name="time_control" type="number" min="1" max="3600" value="60" required></label>
-            <label><input name="allow_repeat" type="checkbox"> Allow repeated cube entries</label>
-            <label><input name="allow_intersection" type="checkbox"> Allow entries shared between players</label>
+            <label>Cube <select name="cube" required disabled><option value="">Choose a cube</option></select></label>
+            <label>Release <select name="release" required disabled><option value="">Choose a cube first</option></select></label>
+            <button type="button" id="live-host-reload">Reload cubes</button>
+            <p id="live-host-cube-status" role="status">Choose a cube to load releases and saved draft settings.</p>
+            <label>Packs per player <input name="amount" type="number" min="1" max="127" required disabled></label>
+            <label>Cards per pack <input name="pack_size" type="number" min="1" max="360" required disabled></label>
+            <label class="host-check"><input name="use_time_controls" type="checkbox" aria-describedby="timer-help"> Use pick timer</label>
+            <small id="timer-help">Enables the seconds-per-pick limit. Unchecked means no pick timer.</small>
+            <label>Seconds per pick <input name="time_control" type="number" min="1" max="3600" value="60" required disabled></label>
+            <label class="host-check"><input name="allow_repeat" type="checkbox" aria-describedby="repeat-help"> Allow repeated cube entries</label>
+            <small id="repeat-help">Sample with replacement: the same cube entry can appear more than once within a pack and across packs for any player. Overrides the sharing setting below.</small>
+            <label class="host-check"><input name="allow_intersection" type="checkbox" aria-describedby="intersection-help"> Allow entries shared between players</label>
+            <small id="intersection-help">Without repeats, sample each pack independently: entries can reappear across packs, including one player's packs, but each pack uses each cube copy at most once. With both options off, packs share one supply of cube copies.</small>
             <p id="live-host-status" role="status"></p>
             <div class="actions"><button type="submit" id="live-host-submit" disabled>Create draft lobby</button><button type="button" id="live-host-cancel" hidden>Cancel editing</button></div>
           </form>

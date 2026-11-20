@@ -379,6 +379,15 @@ function setupArrangement() {
     if (row && event.target.closest(".card-menu-toggle")) {
       event.stopPropagation(); openActions(row, event.clientX, event.clientY, event.detail === 0); return;
     }
+    if (row && event.target.closest(".choose-trap")) {
+      event.preventDefault(); event.stopPropagation();
+      if (clicked && isTrapChoice(clicked.cardId)) {
+        const enabled = row.dataset.choosingTrap !== "true";
+        setTrapChoosing(row, enabled);
+        if (enabled && event.detail === 0) row.querySelector("[data-trap-option]")?.focus();
+      }
+      return;
+    }
     if (row && event.target.closest(".inspect-trap")) {
       event.preventDefault(); event.stopPropagation();
       if (clicked && traps.has(clicked.cardId) && !isTrapChoice(clicked.cardId)) resolveTrap(clicked, clicked.choices || {});
@@ -392,7 +401,7 @@ function setupArrangement() {
     if (option) {
       event.preventDefault();
       event.stopPropagation();
-      if (!event.shiftKey || event.ctrlKey || event.metaKey) {
+      if ((!event.shiftKey && row?.dataset.choosingTrap !== "true") || event.ctrlKey || event.metaKey) {
         const selectedRow = selectCard(event, event.ctrlKey || event.metaKey, true);
         if (selectedRow && !event.ctrlKey && !event.metaKey) openActions(selectedRow, event.clientX, event.clientY);
         return;
@@ -406,7 +415,20 @@ function setupArrangement() {
     const selectedRow = selectCard(event, toggle);
     if (selectedRow && !toggle) openActions(selectedRow, event.clientX, event.clientY);
   });
+  // Moving between a choice's children keeps the mode active; leaving the
+  // whole card ends it. Keyboard users can cancel with Escape or focus outside.
+  for (const type of ["pointerout", "focusout"]) $("zones").addEventListener(type, (event) => {
+    const row = event.target.closest("[data-pick]");
+    if (row?.dataset.choosingTrap === "true" && !row.contains(event.relatedTarget)) setTrapChoosing(row, false);
+  });
   $("zones").addEventListener("keydown", (event) => {
+    const choosing = event.target.closest('[data-choosing-trap="true"]');
+    if (event.key === "Escape" && choosing) {
+      event.preventDefault(); event.stopPropagation();
+      setTrapChoosing(choosing, false);
+      choosing.querySelector(".choose-trap")?.focus();
+      return;
+    }
     if (!["Space", "Enter"].includes(event.code) || !event.target.closest("[data-pick]") || event.target.closest("select,button")) return;
     event.preventDefault();
     const row = selectCard(event, event.code === "Space");
