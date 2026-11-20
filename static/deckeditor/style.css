@@ -253,9 +253,12 @@ button:not(:disabled):hover { border-color: var(--accent); }
 .trap-art-option:hover, .trap-art-option:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
 .trap-art-component img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 35%; }
 .trap-art-component > span { position: absolute; inset: 50% 0 auto; transform: translateY(-50%); padding: 1px 2px; background: #15151599; color: white; text-align: center; font-family: Georgia, serif; font-size: 11px; line-height: 1.25; }
-.card:has(> .inspect-trap) > .trap-face { bottom: 20px; }
-.card:has(> .inspect-trap) { background: var(--chrome); }
-.booster-trap-pick { bottom: 20px; }
+.card:has(.trap-face), .preview-trap-art {
+  border: 3px solid #b493cc;
+  box-shadow: inset 0 0 0 1px #eadcf3;
+  background: #241b2c;
+}
+.booster-trap-pick { border: 0; border-radius: 0; }
 #export-form { display: grid; gap: 12px; }
 #export-form label { display: grid; gap: 4px; }
 #export-dialog { max-height: 90dvh; overflow: auto; }
@@ -269,6 +272,8 @@ button:not(:disabled):hover { border-color: var(--accent); }
   bottom: 2px;
   padding: 1px 3px;
   font-size: 10px;
+  background: #241b2ce6;
+  border-color: #b493cc;
   z-index: 3;
 }
 .inspect-components .card .inspect-trap { display: none; }
