@@ -13,6 +13,93 @@ const lobbies = new Map();
 const detailRequests = new Map();
 let poolsOffset = 0;
 let poolsLoading = false;
+let lobbiesAuthenticated = false;
+let editingLobby = null;
+
+function lobbyStatus(message) {
+  $("live-lobbies-status").textContent = message;
+}
+
+function sendLobby(type, name, extra = {}) {
+  if (!account || !lobbiesAuthenticated || lobbySocket?.readyState !== WebSocket.OPEN) {
+    throw new Error("Reconnect to the draft lobbies before continuing.");
+  }
+  lobbySocket.send(JSON.stringify({ type, name, ...extra }));
+}
+
+function hostNumber(fields, key, min, max) {
+  const value = Number(fields[key]);
+  if (!Number.isSafeInteger(value) || value < min || value > max) throw new Error(`Invalid ${key.replaceAll("_", " ")}: use ${min}–${max}.`);
+  return value;
+}
+
+function hostDraftOptions(fields) {
+  return {
+    draft_format: "single_pick", reverse: false,
+    pool_specification: [{ type: "CubeBoosterSpecification",
+      release: hostNumber(fields, "release", 1, Number.MAX_SAFE_INTEGER),
+      amount: hostNumber(fields, "amount", 1, 127), size: hostNumber(fields, "pack_size", 1, 360),
+      allow_repeat: Boolean(fields.allow_repeat), allow_intersection: Boolean(fields.allow_intersection), scale: false,
+    }],
+    use_time_controls: Boolean(fields.use_time_controls), time_control: hostNumber(fields, "time_control", 1, 3600),
+  };
+}
+
+function editHostedLobby(lobby = null) {
+  editingLobby = lobby?.name || null;
+  const form = $("live-host-form");
+  form.reset();
+  const fields = form.elements;
+  fields.namedItem("name").value = lobby?.name || "";
+  fields.namedItem("name").disabled = Boolean(lobby);
+  $("live-host-lobby-options").disabled = Boolean(lobby);
+  if (lobby) {
+    const options = lobby.game_options;
+    const spec = options.pool_specification[0];
+    const values = { release: typeof spec.release === "object" ? spec.release.id : spec.release,
+      amount: spec.amount, pack_size: spec.size, time_control: options.time_control || 60 };
+    for (const [key, value] of Object.entries(values)) fields.namedItem(key).value = value;
+    for (const key of ["use_time_controls", "allow_repeat", "allow_intersection"]) {
+      fields.namedItem(key).checked = Boolean(key === "use_time_controls" ? options[key] : spec[key]);
+    }
+  }
+  $("live-host-submit").textContent = lobby ? "Save draft settings" : "Create draft lobby";
+  $("live-host-cancel").hidden = !lobby;
+  $("live-host-status").textContent = lobby ? `Editing ${lobby.name}. Settings changes reset readiness.` : "";
+  $("live-host").open = true;
+}
+
+async function submitHostedDraft(fields) {
+  const editing = editingLobby;
+  const options = hostDraftOptions(fields);
+  const name = editingLobby || fields.name?.trim();
+  if (!/^[a-z0-9_]{1,80}$/i.test(name || "")) throw new Error("Use letters, numbers, and underscores for the lobby name.");
+  let lobbyOptions;
+  if (editingLobby) {
+    const lobby = lobbies.get(editingLobby);
+    if (!lobby || lobby.owner !== account?.user.username || lobby.state !== "pre-game") throw new Error("This lobby is no longer available for editing.");
+  } else {
+    const size = hostNumber(fields, "size", 2, 64);
+    const minimum_size = hostNumber(fields, "minimum_size", 2, size);
+    lobbyOptions = { size, minimum_size, require_ready: Boolean(fields.require_ready), unready_on_change: true };
+    if (lobbies.has(name)) throw new Error("A lobby with that name already exists.");
+  }
+  // Creation silently drops invalid options upstream, so check the release first.
+  await cubeRequest(`cube-releases/${options.pool_specification[0].release}/`);
+  if (editing) {
+    const lobby = lobbies.get(editing);
+    if (!lobby || lobby.owner !== account?.user.username || lobby.state !== "pre-game") throw new Error("This lobby is no longer available for editing.");
+  }
+  sendLobby(editing ? "options" : "create", name,
+    editing ? { options } : { game_type: "draft", lobby_options: lobbyOptions, game_options: options });
+  $("live-host-status").textContent = "Sent to Cubeapp. Waiting for lobby confirmation…";
+}
+
+function canStartLobby(lobby) {
+  return lobby.state === "pre-game" && lobby.owner === account?.user.username
+    && lobby.users.length >= Math.max(2, lobby.lobby_options?.minimum_size || 0)
+    && (!lobby.lobby_options?.require_ready || lobby.users.every(({ ready }) => ready));
+}
 
 function liveStatus(message) {
   $("live-status").textContent = message;
@@ -398,26 +485,48 @@ function showLobbies() {
     const action = (label, handler) => {
       const button = document.createElement("button");
       button.textContent = label;
-      button.addEventListener("click", handler);
+      button.addEventListener("click", () => { try { handler(); } catch (error) { lobbyStatus(error.message); } });
       row.append(button);
+      return button;
     };
     const send = (type, extra) => {
-      if (lobbySocket?.readyState === WebSocket.OPEN) lobbySocket.send(JSON.stringify({ type, name: lobby.name, ...extra }));
+      sendLobby(type, lobby.name, extra);
     };
     if (lobby.key) action("Open seat", () => openDraft(lobby.key));
     if (lobby.state === "pre-game") {
-      if (!me) action("Join", () => send("join"));
+      if (!me) action("Join", () => send("join")).disabled = lobby.users.length >= (lobby.lobby_options?.size || 64);
       if (me) {
         action(me.ready ? "Unready" : "Ready", () => send("ready", { state: !me.ready }));
         action("Leave", () => send("leave"));
       }
+      if (lobby.owner === account.user.username) {
+        const specs = lobby.game_options?.pool_specification || [];
+        const spec = specs[0];
+        const editable = specs.length === 1 && spec.type === "CubeBoosterSpecification"
+          && !spec.scale && !lobby.game_options.reverse && lobby.game_options.draft_format === "single_pick";
+        if (editable) action("Draft settings", () => editHostedLobby(lobby));
+        const start = action("Start draft", () => {
+          const current = lobbies.get(lobby.name);
+          if (!current || !canStartLobby(current)) throw new Error("Wait for the minimum players and required readiness before starting.");
+          send("start");
+        });
+        start.disabled = !canStartLobby(lobby);
+        start.title = start.disabled ? "At least two players and the lobby's required readiness are needed." : "Start this draft for all players";
+      }
     }
+    const details = document.createElement("p");
+    details.textContent = `Host: ${lobby.owner} · ${lobby.users.map((user) => `${user.username}${user.ready ? " (ready)" : ""}`).join(", ")}`;
+    const specs = lobby.game_options?.pool_specification || [];
+    details.textContent += specs.map((spec) => ` · ${spec.amount} × ${spec.size || "?"} cards, release ${spec.release?.id || spec.release || "?"}`).join("");
+    row.append(details);
     list.append(row);
   }
   $("live-lobbies-status").textContent = list.children.length ? "" : "No current draft lobbies.";
 }
 
 function connectLobbies() {
+  lobbiesAuthenticated = false;
+  $("live-host-submit").disabled = true;
   lobbySocket?.close();
   $("live-lobbies-status").textContent = "Loading current lobbies…";
   $("live-lobbies-reconnect").hidden = true;
@@ -429,9 +538,13 @@ function connectLobbies() {
     const message = JSON.parse(data);
     if (message.type === "error") {
       $("live-lobbies-status").textContent = message.message || message.error || "Cubeapp rejected the lobby action.";
+      $("live-host-status").textContent = $("live-lobbies-status").textContent;
       return;
     }
     if (message.type === "all_lobbies") {
+      lobbiesAuthenticated = true;
+      $("live-host").hidden = false;
+      $("live-host-submit").disabled = false;
       lobbies.clear();
       for (const lobby of message.lobbies) lobbies.set(lobby.name, lobby);
     } else if (message.type === "lobby_closed") {
@@ -443,10 +556,15 @@ function connectLobbies() {
       const old = lobbies.get(message.lobby.name);
       lobbies.set(message.lobby.name, { ...old, ...message.lobby });
     } else return;
+    if (["lobby_created", "lobby_update"].includes(message.type) && message.lobby?.owner === account.user.username) {
+      $("live-host-status").textContent = `Lobby ${message.lobby.name} confirmed. Ready up, then choose Start draft.`;
+    }
     showLobbies();
   });
   socket.addEventListener("close", () => {
     if (socket !== lobbySocket) return;
+    lobbiesAuthenticated = false;
+    $("live-host-submit").disabled = true;
     lobbies.clear();
     $("live-lobbies").replaceChildren();
     $("live-lobbies-status").textContent = "Lobby connection closed.";
@@ -504,6 +622,8 @@ async function loadPoolEvents(reset = false) {
 }
 
 $("live-lobbies-reconnect").addEventListener("click", connectLobbies);
+liveForm("live-host-form", submitHostedDraft, (message) => { $("live-host-status").textContent = message; });
+$("live-host-cancel").addEventListener("click", () => editHostedLobby());
 $("live-pools-refresh").addEventListener("click", () => loadPoolEvents(true));
 $("live-pools-more").addEventListener("click", () => loadPoolEvents());
 

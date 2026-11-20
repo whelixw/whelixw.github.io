@@ -58,15 +58,12 @@ function isTrapChoice(id) {
 }
 
 function trapComponentSelector(id) {
-  const members = trapComponents(traps.get(id).tree);
-  if (!members.length) return "";
+  const { tree } = traps.get(id);
+  if (!trapComponents(tree).length) return "";
 
-  return `<button type="button" class="trap-component-toggle" aria-expanded="false" aria-label="Show trap components">⌄</button>
-    <span class="trap-components trap-choice-art" role="group" aria-label="Trap components" style="--choice-columns:1">
-      ${members.map((member) => {
-        const name = escapeHtml(cardInfo(member).name);
-        return `<button type="button" data-component="${member}" title="${name}" aria-label="Preview ${name}">${trapTile(member)}<span>${name}</span></button>`;
-      }).join("")}
+  return `<button type="button" class="trap-component-toggle" hidden aria-expanded="false" aria-label="Show trap components"></button>
+    <span class="trap-components trap-art-strip" role="group" aria-label="Trap components">
+      ${trapArtTree(tree, true)}
     </span>`;
 }
 
@@ -76,27 +73,32 @@ function trapTile(member) {
   return image ? `<img src="${escapeHtml(image)}" alt="" draggable="false" loading="lazy">` : "";
 }
 
-function trapFace(id, interactive = true, deck = false) {
-  const { tree, option } = traps.get(id);
-  const members = trapComponents(tree);
-  const tile = trapTile;
-  if (deck && isTrapChoice(id)) {
-    const choices = tree[1];
-    return `<span class="trap-choice-face"><strong>Choose one</strong>
-      <span class="trap-choice-art" style="--choice-columns:${choices.length > 3 ? 2 : 1}">
-        ${choices.map(([node], index) => {
-          const member = trapComponents(node)[0];
-          const label = escapeHtml(trapSummary(node));
-          return `<button type="button" data-trap-option="${index}" ${member === undefined ? "" : `data-component="${member}"`} title="${label} · Shift-click to choose; click for actions" aria-label="${label} · click for actions">${tile(member)}<span>${label}</span></button>`;
-        }).join("")}
-      </span></span>`;
+function trapArtTree(node, interactive = false, count = 1, parentType = null, chooseRoot = false) {
+  if (!Array.isArray(node)) {
+    const name = escapeHtml((count > 1 ? `${count}× ` : "") + cardInfo(node).name);
+    const content = `${trapTile(node)}<span>${name}</span>`;
+    return interactive
+      ? `<button type="button" class="trap-art-component" data-component="${node}" title="${name}" aria-label="Preview ${name}">${content}</button>`
+      : `<span class="trap-art-component">${content}</span>`;
   }
-  const tiles = members.map((member) => {
-    const name = escapeHtml(cardInfo(member).name);
-    return `<span class="trap-art-component">${tile(member)}<span>${name}</span></span>`;
-  }).join("");
-  const overlay = interactive ? trapComponentSelector(id) : "";
-  return `<span class="trap-face"><strong>${option ? "Choose one" : "Trap"}</strong><span class="trap-art-strip">${tiles}</span></span>${overlay}`;
+  const [type, children] = node;
+  const any = type === "AnyNode";
+  const label = (count > 1 ? `${count}× ` : "") + (parentType === null ? "" : parentType === "AllNode" ? "AND " : "OR ") + (any ? "choose one" : "take all");
+  return `<span class="trap-art-group ${any ? "trap-art-any" : "trap-art-all"}" role="group" aria-label="${label}">
+    <span class="trap-group-children">${children.map(([child, quantity], index) => {
+      if (!chooseRoot) return trapArtTree(child, interactive, any ? 1 : quantity, type);
+      const member = trapComponents(child)[0];
+      const summary = escapeHtml(trapSummary(child));
+      return `<button type="button" class="trap-art-option" data-trap-option="${index}" ${member === undefined ? "" : `data-component="${member}"`} title="${summary} · Shift-click to choose; click for actions" aria-label="${summary} · click for actions">${trapArtTree(child, false, 1, type)}</button>`;
+    }).join("")}</span>
+  </span>`;
+}
+
+function trapFace(id, interactive = true, deck = false) {
+  const { tree } = traps.get(id);
+  const choice = deck && isTrapChoice(id);
+  const overlay = interactive && !choice ? trapComponentSelector(id) : "";
+  return `<span class="trap-face"><span class="trap-art-strip">${trapArtTree(tree, false, 1, null, choice)}</span></span>${overlay}`;
 }
 
 function showTrapPreview(id) {

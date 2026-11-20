@@ -125,6 +125,28 @@
       </form>
       <section class="live-section" aria-labelledby="lobbies-title">
         <header><h3 id="lobbies-title">Current draft lobbies</h3><button id="live-lobbies-reconnect" hidden>Reconnect</button></header>
+        <details id="live-host" hidden>
+          <summary>Host a draft</summary>
+          <form id="live-host-form" class="host-form">
+            <label>Lobby name <input name="name" pattern="[a-zA-Z0-9_]+" maxlength="80" required placeholder="Friday_draft"></label>
+            <fieldset id="live-host-lobby-options">
+              <legend>Players</legend>
+              <label>Maximum <input name="size" type="number" min="2" max="64" value="8" required></label>
+              <label>Minimum to start <input name="minimum_size" type="number" min="2" max="64" value="2" required></label>
+              <label><input name="require_ready" type="checkbox" checked> Require everyone ready</label>
+            </fieldset>
+            <label>Cube release ID <input name="release" type="number" min="1" step="1" required></label>
+            <p>Use the release number from the cube's release page on Cubeapp. Drafts use standard single picks and the event's basic lands.</p>
+            <label>Packs per player <input name="amount" type="number" min="1" max="127" value="3" required></label>
+            <label>Cards per pack <input name="pack_size" type="number" min="1" max="360" value="15" required></label>
+            <label><input name="use_time_controls" type="checkbox"> Use pick timer</label>
+            <label>Seconds per pick <input name="time_control" type="number" min="1" max="3600" value="60" required></label>
+            <label><input name="allow_repeat" type="checkbox"> Allow repeated cube entries</label>
+            <label><input name="allow_intersection" type="checkbox"> Allow entries shared between players</label>
+            <p id="live-host-status" role="status"></p>
+            <div class="actions"><button type="submit" id="live-host-submit" disabled>Create draft lobby</button><button type="button" id="live-host-cancel" hidden>Cancel editing</button></div>
+          </form>
+        </details>
         <p id="live-lobbies-status" role="status">Sign in to see current lobbies.</p>
         <div id="live-lobbies" class="live-list"></div>
       </section>

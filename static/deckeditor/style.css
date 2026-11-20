@@ -208,35 +208,27 @@ button:not(:disabled):hover { border-color: var(--accent); }
 .trap-face {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 0;
   height: 100%;
-  padding: 5px;
-  background: linear-gradient(145deg, #605538, #292822);
+  padding: 0;
+  background: #000;
   text-align: left;
 }
 .trap-face small { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; flex: none; }
 .trap-art-strip { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 22px; overflow: hidden; gap: 1px; }
 .trap-art-strip:empty { display: none; }
 .booster-trap-pick { position: absolute; inset: 0; width: 100%; padding: 0; cursor: grab; }
-.trap-component-toggle { position: absolute; top: 2px; left: 2px; z-index: 3; padding: 0 4px; }
+.trap-component-toggle { display: none; }
 .card .trap-components { display: none; }
 .inspect-components .card .trap-components,
 .card .trap-component-toggle[aria-expanded="true"] + .trap-components {
-  display: grid;
+  display: flex;
   position: absolute;
-  inset: 21px 1px 1px;
+  inset: 0;
   overflow: auto;
-  grid-auto-rows: minmax(22px, 1fr);
   background: #222;
   z-index: 2;
 }
-.trap-choice-face { position: absolute; inset: 0; display: flex; flex-direction: column; background: #26231d; }
-.trap-choice-face > strong { padding: 2px 4px; font-size: 10px; line-height: 1.25; white-space: nowrap; }
-.trap-choice-art { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(var(--choice-columns), minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr); gap: 1px; }
-.trap-choice-art button { position: relative; min-width: 0; min-height: 0; padding: 0; overflow: hidden; border-color: #b89c7066; }
-.card .trap-choice-art img { object-fit: cover; object-position: center 35%; }
-.trap-choice-art button > span { position: absolute; inset: auto 0 0; padding: 1px 2px; background: #151515c9; color: white; font-size: 9px; line-height: 1.1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.trap-choice-art button:hover, .trap-choice-art button:focus-visible { z-index: 1; border-color: var(--accent); outline: 1px solid var(--accent); }
 .preview-trap-art { position: relative; aspect-ratio: .717; overflow: hidden; }
 .preview-trap-art > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
 
@@ -250,20 +242,23 @@ button:not(:disabled):hover { border-color: var(--accent); }
 #card-action-options:empty { display: none; }
 #live-results input[type=number] { width: 56px; margin-left: 5px; }
 #search-dialog { max-height: 90dvh; }
-.trap-art-component { position: relative; flex: 1 1 0; min-height: 24px; overflow: hidden; background: var(--canvas); }
+.trap-art-group { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; min-width: 0; border: 3px solid; padding: 2px; box-sizing: border-box; }
+.trap-art-all { border-color: #000; }
+.trap-art-any { border-color: #aaa; }
+.trap-group-children { display: grid; grid-auto-rows: minmax(0, 1fr); flex: 1; min-height: 0; min-width: 0; gap: 1px; }
+.trap-art-strip > .trap-art-group { border-block: 0; padding: 0; }
+.trap-art-component { position: relative; display: block; width: 100%; padding: 0; border: 0; border-radius: 0; flex: 1 1 0; min-width: 0; min-height: 0; overflow: hidden; background: var(--canvas); }
+.trap-art-option { display: flex; min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 0; overflow: hidden; background: transparent; }
+.trap-art-option:hover, .trap-art-option:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
 .trap-art-component img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 35%; }
-.trap-art-component > span { position: absolute; inset: auto 0 0; background: #151515c9; color: white; text-align: center; font-size: 11px; line-height: 1.25; }
+.trap-art-component > span { position: absolute; inset: 50% 0 auto; transform: translateY(-50%); padding: 1px 2px; background: #15151599; color: white; text-align: center; font-family: Georgia, serif; font-size: 11px; line-height: 1.25; }
 .trap-art-strip { overflow: auto; }
 #export-form { display: grid; gap: 12px; }
 #export-form label { display: grid; gap: 4px; }
 #export-dialog { max-height: 90dvh; overflow: auto; }
 .card .trap-art { background: var(--canvas); }
-.card .trap-art-component > span,
-.card .trap-choice-art button > span { display: none; }
-.inspect-components .card .trap-art-component > span,
-.inspect-components .card .trap-choice-art button > span,
-.card:has(.trap-component-toggle[aria-expanded="true"]) .trap-art-component > span,
-.card:has(.trap-component-toggle[aria-expanded="true"]) .trap-choice-art button > span { display: block; }
+.card .trap-art-component > span { display: none; }
+.inspect-components .card .trap-art-component > span { display: block; }
 .card .inspect-trap {
   display: block;
   position: absolute;
@@ -278,6 +273,12 @@ button:not(:disabled):hover { border-color: var(--accent); }
 #selection-box { position: fixed; pointer-events: none; z-index: 3; border: 1px solid var(--accent); background: #8cc9f029; }
 #card-actions { position: fixed; z-index: 4; }
 #trap-dialog { max-height: 90vh; }
+.host-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-block: 12px; }
+.host-form > label { display: grid; gap: 4px; }
+.host-form > p, .host-form > fieldset, .host-form > .actions { grid-column: 1 / -1; }
+.host-form fieldset { display: flex; flex-wrap: wrap; gap: 10px; border: 1px solid var(--edge); }
+.host-form input[type=number] { width: 100px; }
+#live-dialog { max-height: 90dvh; overflow: auto; }
 #trap-tree { display: grid; gap: 6px; overflow-wrap: anywhere; }
 #trap-tree fieldset { min-width: 0; border: 1px solid var(--edge); margin: 4px 0; }
 #trap-tree select { max-width: 100%; }

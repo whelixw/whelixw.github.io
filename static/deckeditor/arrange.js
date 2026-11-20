@@ -380,7 +380,9 @@ function setupArrangement() {
       event.stopPropagation(); openActions(row, event.clientX, event.clientY, event.detail === 0); return;
     }
     if (row && event.target.closest(".inspect-trap")) {
-      event.preventDefault(); event.stopPropagation(); toggleTrapInspection(row); return;
+      event.preventDefault(); event.stopPropagation();
+      if (clicked && traps.has(clicked.cardId) && !isTrapChoice(clicked.cardId)) resolveTrap(clicked, clicked.choices || {});
+      return;
     }
     if (event.shiftKey && clicked && traps.has(clicked.cardId) && !isTrapChoice(clicked.cardId)
       && !event.target.closest("select, .trap-component-toggle")) {
