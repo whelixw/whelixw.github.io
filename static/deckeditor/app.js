@@ -333,11 +333,18 @@ function renderEditor() {
     const slots = Array.from({ length: base + extra * deckRows }, (_, cell) => {
       const { row, col } = deckCoordinates(zone, cell);
       const pile = piles.get(cell);
-      return `<div class="deck-slot" data-cell="${cell}" style="grid-row:${row};grid-column:${col}">${pile ? `<div class="pile">${pile.map(renderCard).join("")}</div>` : ""}</div>`;
+      const stackRows = pile?.length > 1 ? `repeat(${pile.length - 1}, 22px) auto` : "auto";
+      return `<div class="deck-slot" data-cell="${cell}" style="grid-row:${row};grid-column:${col}">${pile ? `<div class="pile" style="grid-template-rows:${stackRows}">${pile.map(renderCard).join("")}</div>` : ""}</div>`;
     }).join("");
+    const rowDepths = Array(deckRows).fill(1);
+    for (const [cell, pile] of piles) {
+      const { row } = deckCoordinates(zone, cell);
+      rowDepths[row - 1] = Math.max(rowDepths[row - 1], pile.length);
+    }
+    const rowHeights = rowDepths.map((depth) => `calc(var(--slot-width) / .717 + ${(depth - 1) * 22}px)`).join(" ");
     return `<section class="zone pane zone-${zone}" data-zone="${zone}" aria-label="${labels[zone]}">
       <header class="pane-bar"><h2>${labels[zone]}</h2><button type="button" data-fit-zone="${zone}" title="Fit cards in view (F)">Fit</button><label class="zone-zoom">Zoom <input type="range" min="10" max="200" step="1" value="${zoneZoom[zone]}" data-zoom="${zone}" aria-label="${labels[zone]} zoom"></label><span>${count}</span></header>
-      <div class="canvas zone-cards" style="--columns:${deckColumns[zone] + extra};--rows:${deckRows}">${slots}</div>
+      <div class="canvas zone-cards" style="--columns:${deckColumns[zone] + extra};--rows:${deckRows};grid-template-rows:${rowHeights}">${slots}</div>
     </section>`;
   }).join("");
   useImageFallback(zones);

@@ -128,7 +128,7 @@ button:not(:disabled):hover { border-color: var(--accent); }
 }
 .deck-slot { border: 1px solid #ffffff10; border-radius: 4px; min-width: 0; }
 .deck-slot.slot-target { border-color: var(--accent); background: #8cc9f020; }
-.deck-slot .pile { width: 100%; }
+.deck-slot .pile { width: 100%; display: grid; }
 .zone.over { outline: 2px solid var(--accent); outline-offset: -2px; background: #35444e; }
 .empty, .preview p { color: var(--muted); padding: 6px 2px; }
 .pile { width: clamp(70px, 8vw, 115px); }
@@ -154,7 +154,7 @@ button:not(:disabled):hover { border-color: var(--accent); }
   overflow: hidden;
 }
 .card { cursor: grab; border: 1px solid #171b1e; padding: 0; }
-.deck-slot .card + .card { margin-top: calc(22px - 139.47%); }
+.deck-slot .pile > .card { grid-column: 1; margin: 0; min-height: 0; align-self: start; }
 .card:hover, .card[aria-pressed=true], .booster-card:has(.booster-trap-pick[aria-pressed=true]) { border-color: var(--accent); }
 .card.chosen { outline: 2px solid var(--accent); outline-offset: -2px; }
 .card.stack-target { outline: 3px solid #f2c375; outline-offset: -3px; }
@@ -206,16 +206,17 @@ button:not(:disabled):hover { border-color: var(--accent); }
 #layout-dialog label { display: grid; gap: 4px; }
 #layout-dialog select, #layout-dialog input { width: 100%; max-width: none; }
 .trap-face {
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
   gap: 0;
-  height: 100%;
   padding: 0;
   background: #000;
   text-align: left;
 }
 .trap-face small { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; flex: none; }
-.trap-art-strip { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 22px; overflow: hidden; gap: 1px; }
+.trap-art-strip { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow: hidden; gap: 1px; }
 .trap-art-strip:empty { display: none; }
 .booster-trap-pick { position: absolute; inset: 0; width: 100%; padding: 0; cursor: grab; }
 .trap-component-toggle { display: none; }
@@ -252,7 +253,9 @@ button:not(:disabled):hover { border-color: var(--accent); }
 .trap-art-option:hover, .trap-art-option:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
 .trap-art-component img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 35%; }
 .trap-art-component > span { position: absolute; inset: 50% 0 auto; transform: translateY(-50%); padding: 1px 2px; background: #15151599; color: white; text-align: center; font-family: Georgia, serif; font-size: 11px; line-height: 1.25; }
-.trap-art-strip { overflow: auto; }
+.card:has(> .inspect-trap) > .trap-face { bottom: 20px; }
+.card:has(> .inspect-trap) { background: var(--chrome); }
+.booster-trap-pick { bottom: 20px; }
 #export-form { display: grid; gap: 12px; }
 #export-form label { display: grid; gap: 4px; }
 #export-dialog { max-height: 90dvh; overflow: auto; }
