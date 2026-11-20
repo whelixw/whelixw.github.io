@@ -323,7 +323,7 @@ function renderEditor() {
       const trap = traps.has(cardId);
       return `<div class="card${chosenCards.has(String(id)) ? " chosen" : ""}" tabindex="0" aria-label="${escapeHtml(name)}" draggable="true" data-pick="${id}" data-preview="${cardId}">
         ${cardFace(cardId, true)}
-        ${trap && !isTrapChoice(cardId) ? '<button type="button" class="resolve-trap">Expand</button>' : ""}
+        ${trap && !isTrapChoice(cardId) ? '<button type="button" class="inspect-trap" aria-expanded="false" title="Show component preview for this card">Expand</button>' : ""}
         <button type="button" class="card-menu-toggle" aria-label="Selection actions" aria-haspopup="true" aria-expanded="false" aria-controls="card-actions"></button>
       </div>`;
     }
@@ -397,12 +397,23 @@ function render() {
 }
 
 const trapInspectionControl = ".trap-component-toggle, .trap-components";
-$("table").addEventListener("click", (event) => {
-  const toggle = event.target.closest(".trap-component-toggle");
+function toggleTrapInspection(card) {
+  const toggle = card?.querySelector(".trap-component-toggle");
   if (!toggle) return;
   const opened = toggle.getAttribute("aria-expanded") === "true";
   toggle.setAttribute("aria-expanded", String(!opened));
   toggle.setAttribute("aria-label", opened ? "Show trap components" : "Hide trap components");
+  const button = card.querySelector(".inspect-trap");
+  if (button) {
+    button.textContent = opened ? "Expand" : "Close preview";
+    button.setAttribute("aria-expanded", String(!opened));
+    button.title = opened ? "Show component preview for this card" : "Hide component preview for this card";
+  }
+}
+$("table").addEventListener("click", (event) => {
+  const toggle = event.target.closest(".trap-component-toggle");
+  if (!toggle) return;
+  toggleTrapInspection(toggle.closest("[data-preview]"));
 });
 $("table").addEventListener("keydown", (event) => {
   if (event.key !== "Escape" || !event.target.closest(trapInspectionControl)) return;

@@ -379,6 +379,9 @@ function setupArrangement() {
     if (row && event.target.closest(".card-menu-toggle")) {
       event.stopPropagation(); openActions(row, event.clientX, event.clientY, event.detail === 0); return;
     }
+    if (row && event.target.closest(".inspect-trap")) {
+      event.preventDefault(); event.stopPropagation(); toggleTrapInspection(row); return;
+    }
     if (event.shiftKey && clicked && traps.has(clicked.cardId) && !isTrapChoice(clicked.cardId)
       && !event.target.closest("select, .trap-component-toggle")) {
       event.preventDefault(); event.stopPropagation(); resolveTrap(clicked, clicked.choices || {}); return;
@@ -395,13 +398,6 @@ function setupArrangement() {
       const pick = findEditorPick(option.closest("[data-pick]").dataset.pick);
       const origin = trapOrigin(pick);
       if (origin?.choicePath) chooseTrapOption(origin.trap, origin.choicePath, Number(option.dataset.trapOption));
-      return;
-    }
-    const button = event.target.closest(".resolve-trap");
-    if (button) {
-      event.stopPropagation();
-      const pick = findEditorPick(button.closest("[data-pick]").dataset.pick);
-      resolveTrap(pick, pick.choices || {});
       return;
     }
     const toggle = event.ctrlKey || event.metaKey || event.shiftKey;

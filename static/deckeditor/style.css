@@ -259,11 +259,12 @@ button:not(:disabled):hover { border-color: var(--accent); }
 #export-dialog { max-height: 90dvh; overflow: auto; }
 .card .trap-art { background: var(--canvas); }
 .card .trap-art-component > span,
-.card .trap-choice-art button > span,
-.card .resolve-trap { display: none; }
+.card .trap-choice-art button > span { display: none; }
 .inspect-components .card .trap-art-component > span,
-.inspect-components .card .trap-choice-art button > span { display: block; }
-.inspect-components .card .resolve-trap {
+.inspect-components .card .trap-choice-art button > span,
+.card:has(.trap-component-toggle[aria-expanded="true"]) .trap-art-component > span,
+.card:has(.trap-component-toggle[aria-expanded="true"]) .trap-choice-art button > span { display: block; }
+.card .inspect-trap {
   display: block;
   position: absolute;
   right: 2px;
@@ -272,6 +273,7 @@ button:not(:disabled):hover { border-color: var(--accent); }
   font-size: 10px;
   z-index: 3;
 }
+.inspect-components .card .inspect-trap { display: none; }
 .zone-cards { user-select: none; }
 #selection-box { position: fixed; pointer-events: none; z-index: 3; border: 1px solid var(--accent); background: #8cc9f029; }
 #card-actions { position: fixed; z-index: 4; }
