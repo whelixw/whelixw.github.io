@@ -57,26 +57,29 @@ function isTrapChoice(id) {
   return traps.get(id)?.option === true;
 }
 
-function trapRegions(node, path = "root", choices = {}) {
-  if (!Array.isArray(node)) return [{ member: node, choices }];
-  const [type, children] = node;
-  return children.flatMap(([child, count], index) => {
-    if (type === "AnyNode") {
-      return trapRegions(child, `${path}.${index}`, { ...choices, [path]: String(index) });
-    }
-    return Array.from({ length: count }, (_, copy) =>
-      trapRegions(child, `${path}.${index}.${copy}`, choices)).flat();
-  });
+function trapComponentSelector(id) {
+  const members = trapComponents(traps.get(id).tree);
+  if (!members.length) return "";
+
+  return `<button type="button" class="trap-component-toggle" aria-expanded="false" aria-label="Show trap components">⌄</button>
+    <span class="trap-components trap-choice-art" role="group" aria-label="Trap components" style="--choice-columns:1">
+      ${members.map((member) => {
+        const name = escapeHtml(cardInfo(member).name);
+        return `<button type="button" data-component="${member}" title="${name}" aria-label="Preview ${name}">${trapTile(member)}<span>${name}</span></button>`;
+      }).join("")}
+    </span>`;
+}
+
+function trapTile(member) {
+  if (member === undefined) return "";
+  const image = cardInfo(member).faces[0]?.image;
+  return image ? `<img src="${escapeHtml(image)}" alt="" draggable="false" loading="lazy">` : "";
 }
 
 function trapFace(id, interactive = true, deck = false) {
-  const { tree, imageId, option } = traps.get(id);
+  const { tree, option } = traps.get(id);
   const members = trapComponents(tree);
-  const tile = (member) => {
-    if (member === undefined) return "";
-    const image = cardInfo(member).faces[0]?.image;
-    return image ? `<img src="${escapeHtml(image)}" alt="" draggable="false" loading="lazy">` : "";
-  };
+  const tile = trapTile;
   if (deck && isTrapChoice(id)) {
     const choices = tree[1];
     return `<span class="trap-choice-face"><strong>Choose one</strong>
@@ -84,21 +87,20 @@ function trapFace(id, interactive = true, deck = false) {
         ${choices.map(([node], index) => {
           const member = trapComponents(node)[0];
           const label = escapeHtml(trapSummary(node));
-          return `<button type="button" data-trap-option="${index}" ${member === undefined ? "" : `data-component="${member}"`} title="${label}" aria-label="Choose ${label}">${tile(member)}<span>${label}</span></button>`;
+          return `<button type="button" data-trap-option="${index}" ${member === undefined ? "" : `data-component="${member}"`} title="${label} · Shift-click to choose; click for actions" aria-label="${label} · click for actions">${tile(member)}<span>${label}</span></button>`;
         }).join("")}
       </span></span>`;
   }
-  const tiles = members.slice(0, 3).map(tile).join("");
-  const art = imageId ? `<img class="trap-art" src="${escapeHtml(bridgeOrigin)}/cubeapp/api/images/${imageId}/?type=trap&amp;size_slug=medium" alt="" draggable="false" loading="lazy">` : "";
-  const regions = interactive ? trapRegions(tree) : [];
-  const overlay = regions.length ? `<span class="trap-components" style="--components:${regions.length > 3 ? Math.ceil(Math.sqrt(regions.length)) : 1}">${regions.map(({ member, choices }) =>
-    `<span data-component="${member}" data-trap-branch="${escapeHtml(JSON.stringify(choices))}" title="${escapeHtml(cardInfo(member).name)}">${tile(member)}<small>${escapeHtml(cardInfo(member).name)}</small></span>`
-  ).join("")}</span>` : "";
-  return `<span class="trap-face"><strong>${option ? "Choose one" : "Trap"}</strong><span class="trap-art-strip">${tiles}</span><small>${escapeHtml(trapSummary(tree))}</small></span>${art}${overlay}`;
+  const tiles = members.map((member) => {
+    const name = escapeHtml(cardInfo(member).name);
+    return `<span class="trap-art-component">${tile(member)}<span>${name}</span></span>`;
+  }).join("");
+  const overlay = interactive ? trapComponentSelector(id) : "";
+  return `<span class="trap-face"><strong>${option ? "Choose one" : "Trap"}</strong><span class="trap-art-strip">${tiles}</span></span>${overlay}`;
 }
 
 function showTrapPreview(id) {
-  const preview = $("preview-primary");
+  const preview = $("preview-secondary");
   preview.innerHTML = `<div class="preview-trap-art">${trapFace(id, false)}</div>`;
   const inspect = $("preview-inspect-trap");
   inspect.hidden = false;
@@ -129,7 +131,7 @@ function visitTrap(node, choices, visit, path = "root", choicePath) {
   if (type === "AnyNode") {
     const index = choices[path];
     if (index !== undefined && index !== "" && children[index]) {
-      visitTrap(children[index][0], choices, visit, `${path}.${index}`, choicePath || path);
+      visitTrap(children[index][0], choices, visit, `${path}.${index}`, path);
     }
     return;
   }
@@ -172,20 +174,46 @@ function refreshTrap(pick, message) {
     if (id === String(pick.id) || id.startsWith(prefix)) chosenCards.delete(id);
   }
   draft.submitted = false;
-  save();
   renderEditor();
+  save();
   renderSubmission();
   notice(message);
 }
 
+function trapCollapsePath(pick, member) {
+  const memberPath = member.path || trapOrigin(member)?.choicePath;
+  if (!memberPath) return null;
+  const paths = memberPath.split(".").map((_, index, parts) => parts.slice(0, index + 1).join("."));
+  return paths.reverse().find((path) => {
+    const node = trapChoiceNode(pick, path);
+    return node?.[0] === "AnyNode" && node[1][pick.choices?.[path]];
+  }) || null;
+}
+
 function collapseTrap(pick, member) {
+  if (!editorActionDepth) return editorAction("collapse trap", () => collapseTrap(pick, member));
+  const path = trapCollapsePath(pick, member);
+  if (path) {
+    const choices = Object.fromEntries(Object.entries(pick.choices || {})
+      .filter(([key]) => key !== path && !key.startsWith(`${path}.`)));
+    resolveTrap(pick, choices, path);
+    notice("Collapsed choice. Other trap components are unchanged.");
+    return;
+  }
   Object.assign(pick, trapPlacement(member));
   delete pick.members;
   refreshTrap(pick, "Collapsed trap.");
 }
 
 function chooseTrapOption(pick, path, index) {
-  const choices = { ...pick.choices, [path]: String(index) };
+  if (!editorActionDepth) return editorAction("choose trap option", () => chooseTrapOption(pick, path, index));
+  const node = trapChoiceNode(pick, path);
+  if (node?.[0] !== "AnyNode" || !node[1][index]) return;
+  const next = String(index);
+  if (pick.choices?.[path] === next) return;
+  const choices = Object.fromEntries(Object.entries(pick.choices || {})
+    .filter(([key]) => !key.startsWith(`${path}.`)));
+  choices[path] = next;
   resolveTrap(pick, choices, path);
 }
 
@@ -198,6 +226,7 @@ function trapChoiceNode(pick, choicePath) {
 }
 
 function resolveTrap(pick, choices, choicePath) {
+  if (!editorActionDepth) return editorAction("expand trap", () => resolveTrap(pick, choices, choicePath));
   const previous = pick.members || [];
   const leaves = trapLeaves(pick, choices);
   const placements = leaves.map((leaf, index) => {
@@ -209,14 +238,14 @@ function resolveTrap(pick, choices, choicePath) {
   const replaced = choicePath && previous.find((member) => !placements.includes(member)
     && (member.path === choicePath || member.path?.startsWith(`${choicePath}.`) || trapOrigin(member)?.choicePath === choicePath));
   const source = replaced || (!previous.length ? pick : null);
-  const prefix = choicePath ? `${choicePath}.` : "root";
+  const affected = (path) => !choicePath || path === choicePath || path.startsWith(`${choicePath}.`);
   const inherited = source && trapPlacement(source);
-  if (inherited && !inherited.stack && leaves.filter((leaf, index) => !placements[index] && leaf.path.startsWith(prefix)).length > 1) {
+  if (inherited && !inherited.stack && leaves.filter((leaf, index) => !placements[index] && affected(leaf.path)).length > 1) {
     inherited.stack = crypto.randomUUID();
   }
   pick.choices = choices;
   pick.members = leaves.map((leaf, index) => {
-    const placement = placements[index] || (leaf.path.startsWith(prefix) ? inherited : null);
+    const placement = placements[index] || (affected(leaf.path) ? inherited : null);
     return { ...leaf, ...trapPlacement(placement || { zone: pick.zone }), id: `${pick.id}:${index}` };
   });
   refreshTrap(pick, choicePath ? "Applied trap choice." : "Expanded trap. Choose options on the remaining choice cards.");
@@ -247,6 +276,10 @@ function editorPicks() {
     if (pick.members.some(({ cardId }) => cardId.startsWith?.("t-option-") && !traps.has(cardId))) trapLeaves(pick);
     return pick.members;
   });
+}
+
+function hasUnresolvedDeckTraps() {
+  return editorPicks().some(({ cardId, zone }) => zone !== "pool" && traps.has(cardId));
 }
 
 function deckPrintings() {

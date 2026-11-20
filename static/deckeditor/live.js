@@ -75,6 +75,8 @@ function remotePrinting(printing) {
     : old?.faces || [{ name, type, image: image(false), oracle: "Rules text has not loaded for this printing." }];
   remoteCards.set(id, {
     name,
+    expansion: printing.expansion?.code || old?.expansion,
+    collectorNumber: printing.collector_number ?? old?.collectorNumber,
     color: color?.length > 1 ? "M" : color?.[0] || old?.color || "C",
     type,
     manaValue: printing.cmc ?? front[0]?.cmc ?? old?.manaValue,
@@ -92,15 +94,19 @@ async function searchCards(name) {
 
 function loadCardDetails(id) {
   const card = remoteCards.get(id);
-  if (!card || card.full || card.name.startsWith("Printing ") || detailRequests.has(id)) return;
-  detailRequests.set(id, searchCards(card.name.split(" // ")[0]).then((results) => {
+  if (!card || card.full || card.name.startsWith("Printing ")) return;
+  if (detailRequests.has(id)) return detailRequests.get(id);
+  const request = searchCards(card.name.split(" // ")[0]).then((results) => {
     const exact = results.find(({ id: printingId }) => `p${printingId}` === id);
     const sameCard = results.find(({ name }) => name === card.name);
     if (exact || sameCard) {
-      remotePrinting({ ...(exact || sameCard), id: Number(id.slice(1)) });
+      const details = exact || { ...sameCard, expansion: undefined, collector_number: undefined };
+      remotePrinting({ ...details, id: Number(id.slice(1)) });
       if (previewed === id || previewComponent === id) renderPreview();
     }
-  }).catch(() => {}).finally(() => detailRequests.delete(id)));
+  }).catch(() => {}).finally(() => detailRequests.delete(id));
+  detailRequests.set(id, request);
+  return request;
 }
 
 $("table").addEventListener("pointerover", inspectRemote);
@@ -137,7 +143,8 @@ function liveWorkspace(key, finished = false) {
     placements.get(placement.cardId).push(placement);
   }
   return {
-    state: { picks: [], available: [], moves: [], deadline: null, round: 0, finished, submitted: false },
+    state: { picks: [], available: [], moves: [], deadline: null, round: 0, packTotal: null, history: [], drafters: new Map(), queues: new Map(), finished, submitted: false },
+    loadedPool: finished,
     canSubmit: false,
     pending: null,
     hasSavedLayout: saved.length > 0,
@@ -155,6 +162,7 @@ function liveWorkspace(key, finished = false) {
       }
     },
     addBasic(printing, quantity, zone) {
+      if (!editorActionDepth) return editorAction("add basic lands", () => this.addBasic(printing, quantity, zone));
       const cardId = remotePrinting(printing);
       const stack = quantity > 1 ? crypto.randomUUID() : undefined;
       for (let copy = 0; copy < quantity; copy += 1) {
@@ -243,6 +251,7 @@ function openDraft(key) {
   draftSocket = socket;
   let unsupported = false;
   let lastPick = 0;
+  let boosterId;
   workspace.pick = (cardId, zone, cell) => {
     if (unsupported || workspace.pending || socket.readyState !== WebSocket.OPEN) return;
     workspace.pending = { cardId, zone, cell };
@@ -255,7 +264,14 @@ function openDraft(key) {
       case "previous_messages":
         for (const item of message.messages) apply(item);
         break;
-      case "started":
+      case "started": {
+        state.drafters = new Map((message.drafters || []).map(({ id, username }) => [id, username]));
+        const amounts = message.pool_specification?.specifications?.map(({ amount }) => amount);
+        if (Number.isSafeInteger(message.pack_amount) && message.pack_amount > 0) {
+          state.packTotal = message.pack_amount;
+        } else if (amounts?.length && amounts.every((amount) => Number.isSafeInteger(amount) && amount > 0)) {
+          state.packTotal = amounts.reduce((total, amount) => total + amount, 0);
+        }
         workspace.setInfinites(message.infinites);
         unsupported = message.draft_format !== "single_pick" || message.reverse;
         if (unsupported) notice("This prototype supports standard single-pick drafts.");
@@ -273,10 +289,20 @@ function openDraft(key) {
           }
         }
         break;
+      }
+      case "booster_amount_update":
+        if (state.drafters.has(message.drafter) && Number.isSafeInteger(message.queue_size) && message.queue_size >= 0) {
+          state.queues.set(message.drafter, message.queue_size);
+          if ($("draft-status").open) renderPackQueues();
+        }
+        return false;
       case "round":
         state.round = message.round.pack;
         break;
       case "booster": {
+        selected = null;
+        boosterId = message.booster.booster_id;
+        state.boosterId = boosterId;
         const cube = message.booster.cubeables;
         if (unsupported || ["tickets", "purples"].some((type) => cube[type]?.length)) {
           state.available = [];
@@ -291,16 +317,20 @@ function openDraft(key) {
         break;
       }
       case "pick": {
-        if (message.pick_number <= lastPick) break;
-        lastPick = message.pick_number;
+        const number = message.pick_number;
+        if (!Number.isSafeInteger(number) || number <= lastPick) return false;
+        lastPick = number;
         const choice = message.pick?.pick;
         const id = Number.isInteger(choice) ? remotePrinting({ id: choice })
           : choice?.type === "Trap" ? registerLiveTrap(choice, true) : null;
         if (id !== null) {
           const pending = workspace.pending?.cardId === id ? workspace.pending : null;
+          state.history.push({ cardId: id, round: state.round, number, boosterId,
+            pack: state.available.includes(id) ? [...state.available] : undefined });
           workspace.add(id, pending?.zone, pending?.cell);
         }
         workspace.pending = null;
+        selected = null;
         state.available = [];
         state.deadline = null;
         break;
@@ -320,8 +350,12 @@ function openDraft(key) {
       case "error":
         workspace.pending = null;
         notice(message.message || message.error || "Cubeapp rejected the draft action.");
-        break;
+        renderSelection();
+        return false;
+      default:
+        return false;
     }
+    return true;
   };
   socket.addEventListener("open", () => {
     if (draftSocket !== socket) return;
@@ -331,8 +365,7 @@ function openDraft(key) {
   socket.addEventListener("message", ({ data }) => {
     if (draftSocket !== socket) return;
     try {
-      apply(JSON.parse(data));
-      if (!workspace.pending) selected = null;
+      if (!apply(JSON.parse(data))) return;
       if (state.picks.length) save();
       render();
     } catch (error) {
@@ -344,6 +377,7 @@ function openDraft(key) {
     draftSocket = null;
     workspace.pending = null;
     state.available = [];
+    state.queues.clear();
     if (activeLive === workspace) {
       selected = null;
       render();

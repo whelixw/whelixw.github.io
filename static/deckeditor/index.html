@@ -10,22 +10,32 @@
   <script src="card-details.js" defer></script>
   <script src="traps.js" defer></script>
   <script src="arrange.js" defer></script>
+  <script src="editor-history.js" defer></script>
+  <script src="layouts.js" defer></script>
+  <script src="history.js" defer></script>
   <script src="app.js" defer></script>
   <script src="live.js" defer></script>
+  <script src="export.js" defer></script>
 </head>
 <body>
   <header class="top">
     <h1>Deckeditor</h1>
     <div class="actions">
       <button id="restart">Restart draft</button>
-      <button id="undo" disabled>Undo move</button>
+      <button id="undo" disabled>Undo</button>
+      <button id="redo" disabled>Redo</button>
       <button id="export" disabled>Export decklist</button>
+      <span id="selection-count" aria-live="polite">0 selected</span>
       <div class="sort-control" id="sort-control">
         <button id="sort-cards" aria-expanded="false" aria-controls="sort-options" disabled>Sort selection ▾</button>
         <div id="sort-options" class="sort-options" hidden>
           <button data-sort="name">Name</button>
           <button data-sort="color">Color</button>
           <button data-sort="mana">Mana value</button>
+          <button data-layout="curve">Layout: Mana curve</button>
+          <button data-layout="colors">Layout: Color overview</button>
+          <button data-layout="review">Layout: Deck review</button>
+          <button id="layout-presets-open">Manage layout presets…</button>
         </div>
       </div>
       <button id="live-open" hidden>Cubeapp</button>
@@ -34,6 +44,7 @@
   </header>
   <div class="tab-bar">
     <span class="active-tab" id="workspace-label">Practice draft</span>
+    <button type="button" id="draft-status-open">Draft status</button>
     <div class="progress" id="progress" aria-label="Pack progress"></div>
     <div class="actions" id="complete-panel" hidden>
       <strong>Draft complete</strong>
@@ -46,6 +57,9 @@
         <header class="pane-bar">
           <h2 id="booster-title">Booster</h2><span id="pack-label"></span>
           <div class="actions">
+            <span id="booster-selection-count" aria-live="polite"></span>
+            <label><input type="checkbox" id="show-pack-ghosts"> Show ghosts</label>
+            <label class="zone-zoom">Zoom <input type="range" min="10" max="200" step="1" value="100" data-zoom="booster" aria-label="Booster zoom"></label>
             <span id="timer" aria-label="Time left"></span>
             <button id="pick" disabled>Pick selected</button>
           </div>
@@ -59,8 +73,8 @@
     <aside class="pane inspector" aria-labelledby="preview-title">
       <header class="pane-bar"><h2 id="preview-title">Card View</h2></header>
       <div class="preview-drawers" id="preview">
-        <section class="preview-drawer"><header><h3 id="preview-primary-title">Card</h3><button id="preview-inspect-trap" hidden>Inspect trap</button></header><div class="preview" id="preview-primary"><p>Hover over a card to preview it here.</p></div></section>
-        <section class="preview-drawer"><header><h3 id="preview-secondary-title">Details</h3><button id="preview-detail-toggle" hidden>Oracle text</button></header><div class="preview" id="preview-secondary"></div></section>
+        <section class="preview-drawer"><header><h3 id="preview-primary-title">Card</h3></header><div class="preview" id="preview-primary"><p>Hover over a card to preview it here.</p></div></section>
+        <section class="preview-drawer"><header><h3 id="preview-secondary-title">Details</h3><button id="preview-detail-toggle" hidden>Oracle text</button><button id="preview-inspect-trap" hidden>Inspect trap</button></header><div class="preview" id="preview-secondary"></div></section>
       </div>
     </aside>
   </main>
@@ -71,7 +85,8 @@
     <span id="total"></span>
   </footer>
   <div id="selection-box" hidden aria-hidden="true"></div>
-  <div id="card-actions" class="sort-options" role="group" aria-label="Card actions" hidden>
+  <div id="card-actions" class="sort-options" role="group" aria-labelledby="card-action-scope" hidden>
+    <strong id="card-action-scope"></strong>
     <div id="card-action-move"></div>
     <button type="button" id="card-action-unstack">Unstack selection</button>
     <button type="button" id="card-action-trap">Expand trap</button>
@@ -81,7 +96,24 @@
     <button type="button" data-sort="name">Sort by name</button>
     <button type="button" data-sort="color">Sort by color</button>
     <button type="button" data-sort="mana">Sort by mana value</button>
+    <button type="button" data-layout="curve">Layout: Mana curve</button>
+    <button type="button" data-layout="colors">Layout: Color overview</button>
+    <button type="button" data-layout="review">Layout: Deck review</button>
+    <button type="button" id="card-action-fit">Fit selection</button>
   </div>
+  <dialog id="layout-dialog" aria-labelledby="layout-title">
+    <header class="pane-bar"><h2 id="layout-title">Layout presets</h2><form method="dialog"><button>Close</button></form></header>
+    <form id="layout-form" class="live-body">
+      <label>Preset <select id="layout-preset"></select></label>
+      <label>Name <input id="layout-name" maxlength="60" required></label>
+      <label>Columns <select id="layout-columns"><option value="mana">Mana value</option><option value="color">Color</option><option value="none">One column</option></select></label>
+      <label>Rows <select id="layout-rows"><option value="kind">Creatures / other spells / lands</option><option value="land">Nonlands / lands</option><option value="none">One row</option></select></label>
+      <label>Within stacks <select id="layout-order"><option value="name">Name</option><option value="mana">Mana value</option><option value="color">Color</option></select></label>
+      <p id="layout-scope"></p>
+      <div class="actions"><button type="submit">Apply layout</button><button type="button" id="layout-save">Save preset</button><button type="button" id="layout-delete">Delete saved preset</button></div>
+      <p id="layout-status" role="status"></p>
+    </form>
+  </dialog>
   <dialog id="live-dialog" aria-labelledby="live-title">
     <header class="pane-bar"><h2 id="live-title">Prohunterdogkeeper</h2><button id="live-close" aria-label="Close connection panel">Close</button></header>
     <div class="live-body">
@@ -128,6 +160,46 @@
       <p id="search-status" role="status"></p>
       <div id="live-results" class="live-list"></div>
     </div>
+  </dialog>
+  <dialog id="draft-status" aria-labelledby="draft-status-title">
+    <header class="pane-bar"><h2 id="draft-status-title">Draft status</h2><form method="dialog"><button>Close</button></form></header>
+    <div class="live-body">
+      <section id="pack-queues" hidden aria-labelledby="pack-queues-title">
+        <h3 id="pack-queues-title">Packs on hand (including active pack)</h3>
+        <p id="pack-queues-empty">Pack counts unavailable.</p>
+        <ul id="pack-queues-list"></ul>
+      </section>
+      <h3>Pick history</h3>
+      <p id="pick-history-empty">No confirmed picks yet.</p>
+      <ol id="pick-history"></ol>
+      <section id="history-view" hidden aria-label="Historical pack">
+        <div class="actions">
+          <button type="button" id="history-previous">Previous pick</button>
+          <span id="history-label" aria-live="polite"></span>
+          <button type="button" id="history-next">Next pick</button>
+        </div>
+        <p id="history-description"></p>
+        <div id="history-pack" class="history-pack"></div>
+      </section>
+    </div>
+  </dialog>
+  <dialog id="export-dialog" aria-labelledby="export-title">
+    <header class="pane-bar"><h2 id="export-title">Export deck</h2><form method="dialog"><button>Close</button></form></header>
+    <form id="export-form" class="live-body">
+      <label>Deck name <input name="deckName" value="Draft deck" maxlength="160" required></label>
+      <label>Format <select name="format">
+        <option value="txt">Plain text (.txt)</option>
+        <option value="cod">Cockatrice (.cod)</option>
+        <option value="mtgo">Magic Online text (.txt)</option>
+        <option value="arena">MTG Arena text (.txt)</option>
+        <option value="dec">Deckeditor / Apprentice (.dec)</option>
+        <option value="mwDeck">Magic Workstation (.mwDeck)</option>
+        <option value="json">Deckeditor JSON (.json)</option>
+      </select></label>
+      <p id="export-help"></p>
+      <p id="export-status" role="status"></p>
+      <div class="actions"><button type="submit">Download</button><button type="button" id="export-copy">Copy to clipboard</button></div>
+    </form>
   </dialog>
   <dialog id="trap-dialog" aria-labelledby="trap-title">
     <header class="pane-bar"><h2 id="trap-title">Trap contents</h2><form method="dialog"><button>Close</button></form></header>

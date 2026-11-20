@@ -16,7 +16,8 @@ const colors = { R: "#e57e61", U: "#5bafdb", G: "#75b78b", W: "#e1cc9d", B: "#ae
 const labels = { pool: "Pool", main: "Main deck", side: "Sideboard" };
 const zoneKeys = Object.keys(labels);
 const picksPerPack = 4;
-const pickLimit = 12;
+const practicePackCount = 3;
+const pickLimit = picksPerPack * practicePackCount;
 const pickDuration = 75000;
 const storageKey = "deckeditor-workbench-v1";
 const $ = (id) => document.getElementById(id);
@@ -24,6 +25,7 @@ const pack = $("pack");
 const zones = $("zones");
 let previewed = null;
 let previewComponent = null;
+let pinnedTrapComponent = null;
 let showBackOracle = false;
 let activeLive = null;
 const remoteCards = new Map();
@@ -61,7 +63,10 @@ function useImageFallback(container) {
 
 function showPreview(id, component = null) {
   if (id === previewed && component === previewComponent) return;
-  if (id !== previewed) showBackOracle = false;
+  if (id !== previewed) {
+    showBackOracle = false;
+    pinnedTrapComponent = null;
+  }
   previewed = id;
   previewComponent = component;
   renderPreview();
@@ -100,13 +105,13 @@ function renderPreview() {
     return;
   }
   if (traps.has(previewed)) {
-    upperTitle.textContent = trapInfo(previewed).name;
-    lowerTitle.textContent = "Trap component";
+    upperTitle.textContent = "Trap component";
+    lowerTitle.textContent = trapInfo(previewed).name;
     showTrapPreview(previewed);
     const component = previewComponent ?? trapComponents(traps.get(previewed).tree)[0];
-    if (component === undefined) lower.replaceChildren();
+    if (component === undefined) upper.replaceChildren();
     else {
-      renderFace(lower, cardInfo(component).faces[0]);
+      renderFace(upper, cardInfo(component).faces[0]);
       if (typeof component === "string" && component.startsWith("p")) loadCardDetails(component);
     }
     return;
@@ -132,7 +137,9 @@ function previewCard(event) {
   if (!card) return;
   const component = event.target.closest("[data-component]");
   const id = cardKey(card.dataset.preview);
-  showPreview(id, component ? cardKey(component.dataset.component) : null);
+  const member = component ? cardKey(component.dataset.component) : id === previewed ? pinnedTrapComponent : null;
+  showPreview(id, member);
+  if (event.type === "click" && component?.closest(".trap-components")) pinnedTrapComponent = member;
 }
 
 for (const name of ["pointerover", "focusin", "click"]) $("table").addEventListener(name, previewCard);
@@ -184,6 +191,7 @@ function restore() {
 
 let draft = restore();
 let selected = null;
+let selectedBoosterIndex = -1;
 let drag = null;
 let storageAvailable = true;
 
@@ -214,8 +222,8 @@ function confirmPick(cardId, zone = "main", automatic = false, cell) {
   if (activeLive) return activeLive.pick(cardId, zone, cell);
 
   const round = currentRound();
-  draft.picks.push({ id: draft.picks.length, cardId, zone, cell });
-  draft.available = draft.available.filter((id) => id !== cardId);
+  draft.picks.push({ id: draft.picks.length, cardId, zone, cell, pack: [...draft.available] });
+  draft.available.splice(draft.available.indexOf(cardId), 1);
   if (complete()) {
     draft.available = [];
   } else if (currentRound() !== round) {
@@ -241,6 +249,7 @@ function changeZone(pick, zone) {
 }
 
 function moveCard(id, zone) {
+  if (!editorActionDepth) return editorAction("move card", () => moveCard(id, zone));
   const pick = findEditorPick(id);
   if (!pick || !changeZone(pick, zone)) return;
   save();
@@ -251,7 +260,7 @@ function moveCard(id, zone) {
 
 function renderPack() {
   const round = currentRound();
-  $("progress").innerHTML = activeLive ? "" : [0, 1, 2].map((index) =>
+  $("progress").innerHTML = activeLive ? "" : Array.from({ length: practicePackCount }, (_, index) =>
     `<span class="${index < round ? "done" : index === round ? "active" : ""}">${index < round ? "✓ " : ""}Pack ${index + 1}</span>`
   ).join("");
   $("draft-panel").hidden = complete();
@@ -261,25 +270,34 @@ function renderPack() {
     pack.replaceChildren();
     return;
   }
-  $("pack-label").textContent = activeLive
-    ? (draft.available.length ? `Pack ${draft.round + 1} · Pick ${draft.picks.length + 1}` : "Waiting for booster")
-    : `Pack ${round + 1} · Pick ${draft.picks.length % picksPerPack + 1} / ${picksPerPack}`;
-  const stacks = [];
-  for (let index = 0; index < draft.available.length; index += 2) {
-    const pile = draft.available.slice(index, index + 2).map((id) =>
-      `<button class="booster-card card" data-card="${id}" data-preview="${id}" draggable="true" aria-label="${escapeHtml(cardInfo(id).name)}" aria-pressed="false">${cardFace(id)}</button>`
-    ).join("");
-    stacks.push(`<div class="pile">${pile}</div>`);
-  }
-  pack.innerHTML = stacks.join("");
+  const packNumber = activeLive ? draft.round : round + 1;
+  const packTotal = activeLive ? draft.packTotal : practicePackCount;
+  const packLabel = packNumber ? `Pack ${packNumber}${packTotal ? ` of ${packTotal}` : ""}` : "";
+  const pickLabel = activeLive
+    ? (draft.available.length ? `Pick ${draft.picks.length + 1}` : "Waiting for booster")
+    : `Pick ${draft.picks.length % picksPerPack + 1} / ${picksPerPack}`;
+  $("pack-label").textContent = [packLabel, pickLabel].filter(Boolean).join(" · ");
+  pack.innerHTML = draft.available.map((id) => {
+    const name = escapeHtml(cardInfo(id).name);
+    if (traps.has(id)) {
+      return `<div class="booster-card card" data-card="${id}" data-preview="${id}" draggable="true">
+        <button type="button" class="booster-trap-pick" aria-label="${name}" aria-pressed="false">${trapFace(id, false)}</button>
+        ${trapComponentSelector(id)}
+      </div>`;
+    }
+    return `<button type="button" class="booster-card card" data-card="${id}" data-preview="${id}" draggable="true" aria-label="${name}" aria-pressed="false">${cardFace(id)}</button>`;
+  }).join("");
+  renderPackGhosts();
   useImageFallback(pack);
   renderSelection();
   renderTimer();
 }
 
 function renderSelection() {
-  for (const card of pack.querySelectorAll("[data-card]")) {
-    card.setAttribute("aria-pressed", String(cardKey(card.dataset.card) === selected));
+  $("booster-selection-count").textContent = selected === null ? "0 selected" : "1 selected";
+  for (const [index, card] of [...pack.children].entries()) {
+    const control = card.querySelector(".booster-trap-pick") || card;
+    control.setAttribute("aria-pressed", String(index === selectedBoosterIndex && cardKey(card.dataset.card) === selected));
   }
   $("pick").disabled = selected === null || Boolean(activeLive?.pending);
   $("pick-hint").textContent = selected === null
@@ -295,20 +313,18 @@ function renderEditor() {
     return [pane.dataset.zone, { left: canvas.scrollLeft, top: canvas.scrollTop }];
   }));
   $("total").textContent = activeLive ? `${draft.picks.length} cards` : `${draft.picks.length} / ${pickLimit} picked`;
-  $("undo").disabled = !draft.moves.length;
-  $("export").disabled = !deckPrintings().length;
+  updateEditorHistoryControls();
+  $("export").disabled = !deckPrintings().length && !hasUnresolvedDeckTraps();
   zones.innerHTML = zoneKeys.map((zone) => {
     const piles = deckPiles(zone);
     const count = orderedZone(zone).length;
     function renderCard({ id, cardId }) {
       const { name } = cardInfo(cardId);
-      const options = zoneKeys.filter((key) => key !== zone)
-        .map((key) => `<option value="${key}">${labels[key]}</option>`).join("");
       const trap = traps.has(cardId);
       return `<div class="card${chosenCards.has(String(id)) ? " chosen" : ""}" tabindex="0" aria-label="${escapeHtml(name)}" draggable="true" data-pick="${id}" data-preview="${cardId}">
         ${cardFace(cardId, true)}
         ${trap && !isTrapChoice(cardId) ? '<button type="button" class="resolve-trap">Expand</button>' : ""}
-        <select aria-label="Move ${escapeHtml(name)}"><option value="">Move…</option>${options}</select>
+        <button type="button" class="card-menu-toggle" aria-label="Selection actions" aria-haspopup="true" aria-expanded="false" aria-controls="card-actions"></button>
       </div>`;
     }
     const base = deckColumns[zone] * deckRows;
@@ -319,7 +335,7 @@ function renderEditor() {
       return `<div class="deck-slot" data-cell="${cell}" style="grid-row:${row};grid-column:${col}">${pile ? `<div class="pile">${pile.map(renderCard).join("")}</div>` : ""}</div>`;
     }).join("");
     return `<section class="zone pane zone-${zone}" data-zone="${zone}" aria-label="${labels[zone]}">
-      <header class="pane-bar"><h2>${labels[zone]}</h2><span>${count}</span></header>
+      <header class="pane-bar"><h2>${labels[zone]}</h2><button type="button" data-fit-zone="${zone}" title="Fit cards in view (F)">Fit</button><label class="zone-zoom">Zoom <input type="range" min="10" max="200" step="1" value="${zoneZoom[zone]}" data-zoom="${zone}" aria-label="${labels[zone]} zoom"></label><span>${count}</span></header>
       <div class="canvas zone-cards" style="--columns:${deckColumns[zone] + extra};--rows:${deckRows}">${slots}</div>
     </section>`;
   }).join("");
@@ -333,7 +349,8 @@ function renderEditor() {
 
 function renderSubmission() {
   const hasMainDeck = deckPrintings().some(({ zone }) => zone === "main");
-  $("submit").disabled = draft.submitted || !hasMainDeck || Boolean(activeLive && !activeLive.canSubmit);
+  $("submit").disabled = draft.submitted || (!hasMainDeck && !hasUnresolvedDeckTraps())
+    || Boolean(activeLive && !activeLive.canSubmit);
   $("submit").textContent = activeLive
     ? (draft.submitted ? "Deck submitted" : "Submit deck")
     : (draft.submitted ? "Demo deck submitted" : "Submit demo deck");
@@ -349,20 +366,61 @@ function renderTimer() {
   $("timer").classList.toggle("urgent", seconds <= 10);
 }
 
+function renderPackQueues() {
+  const section = $("pack-queues");
+  section.hidden = !activeLive || activeLive.loadedPool;
+  if (section.hidden) return;
+  const players = [...draft.drafters];
+  $("pack-queues-empty").hidden = Boolean(players.length);
+  $("pack-queues-list").replaceChildren(...players.map(([id, name]) => {
+    const row = document.createElement("li");
+    row.textContent = `${name}: ${draft.queues.get(id) ?? "Unavailable"}`;
+    return row;
+  }));
+}
+
+$("draft-status-open").addEventListener("click", () => {
+  renderPickHistory();
+  renderPackQueues();
+  $("draft-status").showModal();
+});
+
 function render() {
+  if ($("draft-status").open) {
+    renderPickHistory();
+    renderPackQueues();
+  }
   renderPack();
   renderEditor();
   renderSubmission();
   if (complete()) $("pick-hint").textContent = "Hover any card to preview it. Use the move menu or drag to rearrange.";
 }
 
+const trapInspectionControl = ".trap-component-toggle, .trap-components";
+$("table").addEventListener("click", (event) => {
+  const toggle = event.target.closest(".trap-component-toggle");
+  if (!toggle) return;
+  const opened = toggle.getAttribute("aria-expanded") === "true";
+  toggle.setAttribute("aria-expanded", String(!opened));
+  toggle.setAttribute("aria-label", opened ? "Show trap components" : "Hide trap components");
+});
+$("table").addEventListener("keydown", (event) => {
+  if (event.key !== "Escape" || !event.target.closest(trapInspectionControl)) return;
+  const toggle = event.target.closest("[data-preview]")?.querySelector(".trap-component-toggle");
+  if (toggle?.getAttribute("aria-expanded") !== "true") return;
+  toggle.focus();
+  toggle.click();
+});
 pack.addEventListener("click", (event) => {
+  if (event.target.closest(trapInspectionControl)) return;
   const card = event.target.closest("[data-card]");
   if (!card) return;
   selected = cardKey(card.dataset.card);
+  selectedBoosterIndex = [...pack.children].indexOf(card);
   renderSelection();
 });
 pack.addEventListener("dblclick", (event) => {
+  if (event.target.closest(trapInspectionControl)) return;
   const card = event.target.closest("[data-card]");
   if (!card) return;
   const id = cardKey(card.dataset.card);
@@ -378,6 +436,10 @@ function startDrag(event, payload) {
 }
 
 pack.addEventListener("dragstart", (event) => {
+  if (event.target.closest(trapInspectionControl)) {
+    event.preventDefault();
+    return;
+  }
   const card = event.target.closest("[data-card]");
   if (card) startDrag(event, { type: "booster", id: cardKey(card.dataset.card) });
 });
@@ -432,43 +494,19 @@ document.addEventListener("dragend", () => {
   zones.querySelector(".stack-target")?.classList.remove("stack-target");
   zones.querySelector(".slot-target")?.classList.remove("slot-target");
 });
-zones.addEventListener("change", (event) => {
-  const row = event.target.closest("[data-pick]");
-  if (!row || !event.target.value) return;
-  const id = row.dataset.pick;
-  moveCard(id, event.target.value);
-  zones.querySelector(`[data-pick="${id}"] select`)?.focus();
-});
+$("undo").addEventListener("click", () => replayEditorAction("undo"));
+$("redo").addEventListener("click", () => replayEditorAction("redo"));
 
-$("undo").addEventListener("click", () => {
-  const move = draft.moves.pop();
-  if (!move) return;
-  const pick = findEditorPick(move.id);
-  if (!pick) return;
-  pick.zone = move.from;
-  pick.order = move.order;
-  pick.stack = move.stack;
-  pick.cell = move.cell;
-  draft.submitted = false;
-  save();
-  renderEditor();
-  renderSubmission();
-  notice(`Returned ${cardInfo(pick.cardId).name} to ${labels[move.from]}.`);
-});
+function checkDeckTraps() {
+  if (!hasUnresolvedDeckTraps()) return true;
+  notice("Resolve traps in Main deck and Sideboard, or move them to Pool.");
+  return false;
+}
 
-$("export").addEventListener("click", () => {
-  const section = (zone) => orderedZone(zone).filter(({ cardId }) => !traps.has(cardId)).map(({ cardId }) => `1 ${cardInfo(cardId).name}`).join("\n");
-  const text = `Main deck\n${section("main")}\n\nSideboard\n${section("side")}\n`;
-  const url = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = "draft-deck.txt";
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-});
 
 $("submit").addEventListener("click", () => {
-  if (!complete() || $("submit").disabled) return;
+  if (!complete() || $("submit").disabled || !checkDeckTraps()) return;
+  if (!deckPrintings().some(({ zone }) => zone === "main")) return;
   if (activeLive) return void activeLive.submit();
   draft.submitted = true;
   save();
@@ -488,6 +526,7 @@ $("restart").addEventListener("click", () => {
   notice("New draft started.");
 });
 
+setupHistory();
 setupArrangement();
 save();
 render();

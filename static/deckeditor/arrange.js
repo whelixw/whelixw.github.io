@@ -3,6 +3,52 @@
 const chosenCards = new Set();
 const deckRows = 3;
 const deckColumns = { pool: 10, main: 10, side: 3 };
+const zoneZoom = { booster: 100, pool: 100, main: 100, side: 100 };
+
+function setZoneZoom(zone, value) {
+  zoneZoom[zone] = value;
+  $("table").style.setProperty(`--zoom-${zone}`, value / 100);
+  const slider = $("table").querySelector(`[data-zoom="${zone}"]`);
+  if (slider) slider.value = value;
+  try { localStorage.setItem("deckeditor-zone-zoom", JSON.stringify(zoneZoom)); } catch {}
+}
+
+function setupZoneZoom() {
+  const table = $("table");
+  const storageKey = "deckeditor-zone-zoom";
+  const apply = (zone, value) => {
+    setZoneZoom(zone, value);
+  };
+  try {
+    const saved = JSON.parse(localStorage.getItem(storageKey));
+    for (const zone of Object.keys(zoneZoom)) {
+      const value = saved?.[zone];
+      if (Number.isInteger(value) && value >= 10 && value <= 200) apply(zone, value);
+    }
+  } catch {}
+  table.querySelector('[data-zoom="booster"]').value = zoneZoom.booster;
+  table.addEventListener("input", (event) => {
+    const zone = event.target.dataset.zoom;
+    if (!Object.hasOwn(zoneZoom, zone)) return;
+    apply(zone, event.target.valueAsNumber);
+    try { localStorage.setItem(storageKey, JSON.stringify(zoneZoom)); } catch {}
+  });
+  table.addEventListener("wheel", (event) => {
+    if (!event.deltaY || event.target.closest("select, .trap-components")) return;
+    const canvas = event.target.closest(".zone-cards, #pack");
+    if (!canvas) return;
+    const zone = canvas.id === "pack" ? "booster" : canvas.closest("[data-zone]").dataset.zone;
+    event.preventDefault();
+    const oldZoom = zoneZoom[zone];
+    const value = Math.max(10, Math.min(200, oldZoom + (event.deltaY < 0 ? 10 : -10)));
+    if (oldZoom === value) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left, y = event.clientY - rect.top;
+    const left = (canvas.scrollLeft + x) * value / oldZoom - x;
+    const top = (canvas.scrollTop + y) * value / oldZoom - y;
+    apply(zone, value); canvas.scrollTo({ left, top });
+  }, { passive: false });
+}
 
 function orderedZone(zone) {
   return editorPicks().filter((pick) => pick.zone === zone).sort((left, right) =>
@@ -15,9 +61,10 @@ function selectedCards() {
 
 function updateArrangeControls() {
   const selected = selectedCards();
-  const hasPair = zoneKeys.some((zone) => selected.filter((pick) => pick.zone === zone).length > 1);
-  $("sort-cards").disabled = !hasPair;
-  if (!hasPair) showSortMenu(false);
+  $("selection-count").textContent = `${selected.length} selected`;
+  $("sort-cards").disabled = !editorPicks().length;
+  $("sort-cards").textContent = selected.length ? `Sort ${selected.length} selected ▾` : `Sort ${labels[activeEditorZone]} ▾`;
+  updateEditorHistoryControls();
   for (const card of $("zones").querySelectorAll("[data-pick]")) {
     card.classList.toggle("chosen", chosenCards.has(card.dataset.pick));
   }
@@ -68,6 +115,7 @@ function deckCoordinates(zone, cell) {
 }
 
 function arrangeDrop(ids, zone, targetId, cell) {
+  if (!editorActionDepth) return editorAction("arrange cards", () => arrangeDrop(ids, zone, targetId, cell));
   if (ids.includes(targetId)) return;
   const picks = ids.map(findEditorPick).filter(Boolean);
   const target = findEditorPick(targetId);
@@ -171,87 +219,93 @@ function setupSelectionBox(canvasRoot) {
 
 function setupCardActions() {
   const menu = $("card-actions");
-  const close = () => { menu.hidden = true; };
-  document.addEventListener("pointerdown", (event) => {
-    if (!menu.contains(event.target)) close();
-  });
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !menu.hidden) {
-      close();
-      anchor?.focus();
-    }
-  });
   let anchor;
+  const close = () => {
+    menu.hidden = true;
+    anchor?.querySelector(".card-menu-toggle")?.setAttribute("aria-expanded", "false");
+  };
+  document.addEventListener("pointerdown", (event) => { if (!menu.contains(event.target)) close(); });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !menu.hidden) { close(); anchor?.focus(); }
+  });
   return (card, x, y, keyboard = false) => {
     anchor = card;
-    const pick = findEditorPick(card.dataset.pick);
-    const selection = selectedCards().filter(({ zone }) => zone === pick.zone);
+    const clicked = findEditorPick(card.dataset.pick);
+    if (!clicked) return;
+    if (!chosenCards.has(String(clicked.id))) {
+      chosenCards.clear(); chosenCards.add(String(clicked.id)); updateArrangeControls();
+    }
+    const selection = selectedCards();
     const ids = selection.map(({ id }) => String(id));
+    const pick = selection.length === 1 ? selection[0] : null;
+    const origin = pick && trapOrigin(pick);
+    $("card-action-scope").textContent = `Actions for ${ids.length} selected ${ids.length === 1 ? "card" : "cards"}`;
     showSortMenu(false);
-    const moves = $("card-action-move");
-    moves.replaceChildren();
-    for (const zone of zoneKeys.filter((zone) => zone !== pick.zone)) {
-      const move = document.createElement("button");
-      move.type = "button";
-      move.textContent = `Move ${ids.length > 1 ? "selection" : "card"} to ${labels[zone]}`;
-      move.onclick = () => { close(); arrangeDrop(ids, zone); };
-      moves.append(move);
+    const moves = $("card-action-move"); moves.replaceChildren();
+    for (const zone of zoneKeys.filter((zone) => selection.some((pick) => pick.zone !== zone))) {
+      const move = document.createElement("button"); move.type = "button";
+      move.textContent = `Move ${ids.length} selected to ${labels[zone]}`;
+      move.onclick = () => { close(); arrangeDrop(ids, zone); }; moves.append(move);
     }
     const unstack = $("card-action-unstack");
     unstack.hidden = !selection.some(({ stack }) => stack);
-    unstack.onclick = () => { close(); arrangeDrop(ids, pick.zone); };
-    const origin = trapOrigin(pick);
-    const trap = $("card-action-trap");
-    const coveredChoice = isTrapChoice(pick.cardId) && card.nextElementSibling;
-    trap.hidden = !coveredChoice && (!traps.has(pick.cardId) || Boolean(origin));
-    trap.textContent = coveredChoice ? "Bring choices to front" : "Expand trap";
-    trap.onclick = () => {
-      close();
+    unstack.onclick = () => { close(); editorAction("unstack selection", () => {
+      for (const zone of zoneKeys) arrangeDrop(selection.filter((pick) => pick.zone === zone).map(({ id }) => String(id)), zone);
+    }); };
+    const expandable = selection.filter(({ cardId }) => traps.has(cardId) && !isTrapChoice(cardId));
+    const coveredChoice = pick && isTrapChoice(pick.cardId) && card.nextElementSibling;
+    const trap = $("card-action-trap"); trap.hidden = !coveredChoice && !expandable.length;
+    trap.textContent = coveredChoice ? "Bring choices to front" : "Expand selected traps";
+    trap.onclick = () => { close(); editorAction(coveredChoice ? "bring choices to front" : "expand traps", () => {
       if (coveredChoice) {
-        const cards = orderedZone(pick.zone).filter((entry) => entry !== pick);
-        cards.push(pick);
-        cards.forEach((entry, index) => { entry.order = index; });
-        save();
-        renderEditor();
-        return;
+        const cards = orderedZone(pick.zone).filter((entry) => entry !== pick).concat(pick);
+        cards.forEach((entry, index) => { entry.order = index; }); save(); renderEditor();
+      } else for (const entry of expandable) resolveTrap(entry, entry.choices || {});
+    }); };
+    const options = $("card-action-options"); options.replaceChildren();
+    if (origin?.choicePath) {
+      const paths = pick.path ? pick.path.split(".").map((_, index, parts) => parts.slice(0, index + 1).join(".")) : [origin.choicePath];
+      for (const path of paths) {
+        const choice = trapChoiceNode(origin.trap, path);
+        if (choice?.[0] !== "AnyNode") continue;
+        choice[1].forEach(([option], index) => {
+          if (String(index) === origin.trap.choices?.[path]) return;
+          const button = document.createElement("button"); button.type = "button";
+          button.textContent = `${path === pick.path && isTrapChoice(pick.cardId) ? "Choose" : "Reselect"} ${trapSummary(option)}`;
+          button.onclick = () => { close(); chooseTrapOption(origin.trap, path, index); }; options.append(button);
+        });
       }
-      resolveTrap(pick, {});
-    };
-    const options = $("card-action-options");
-    options.replaceChildren();
-    if (origin?.choicePath && !isTrapChoice(pick.cardId)) {
-      const choice = trapChoiceNode(origin.trap, origin.choicePath);
-      choice?.[1].forEach(([option], index) => {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.textContent = `Reselect ${trapSummary(option)}`;
-        button.onclick = () => { close(); chooseTrapOption(origin.trap, origin.choicePath, index); };
-        options.append(button);
-      });
     }
-    const collapse = $("card-action-collapse");
-    collapse.hidden = !origin;
-    collapse.onclick = () => { close(); collapseTrap(origin.trap, pick); };
-    const remove = $("card-action-remove-basic");
+    // Capture branch targets before any collapse changes member IDs.
+    const plans = selection.flatMap((member) => {
+      const origin = trapOrigin(member);
+      return origin ? [{ trap: origin.trap, member, path: trapCollapsePath(origin.trap, member) }] : [];
+    }).filter((plan, index, all) => !all.some((other, otherIndex) => other.trap === plan.trap
+      && (other.path === plan.path ? otherIndex < index : !other.path || (plan.path && plan.path.startsWith(`${other.path}.`)))));
+    const collapse = $("card-action-collapse"); collapse.hidden = !plans.length;
+    collapse.textContent = ids.length > 1 ? "Collapse selected traps / choices" : plans[0]?.path ? "Collapse choice" : "Collapse trap";
+    collapse.onclick = () => { close(); editorAction("collapse traps", () => {
+      for (const plan of plans) collapseTrap(plan.trap, plan.member);
+    }); };
     const added = selection.filter(({ addedPrinting }) => addedPrinting);
-    remove.hidden = !added.length;
-    remove.textContent = added.length > 1 ? "Remove added basics" : "Remove added basic";
-    remove.onclick = () => {
-      close();
-      const ids = new Set(added.map(({ id }) => String(id)));
-      draft.picks = draft.picks.filter(({ id }) => !ids.has(String(id)));
-      draft.moves = draft.moves.filter(({ id }) => !ids.has(String(id)));
-      for (const id of ids) chosenCards.delete(id);
-      draft.submitted = false;
-      save();
-      renderEditor();
-      renderSubmission();
-    };
+    const remove = $("card-action-remove-basic"); remove.hidden = !added.length;
+    remove.textContent = `Remove ${added.length} selected added ${added.length === 1 ? "basic" : "basics"}`;
+    remove.onclick = () => { close(); editorAction("remove added basics", () => {
+      const removed = new Set(added.map(({ id }) => String(id)));
+      draft.picks = draft.picks.filter(({ id }) => !removed.has(String(id)));
+      for (const id of removed) chosenCards.delete(id);
+      draft.submitted = false; save(); renderEditor(); renderSubmission();
+    }); };
     for (const button of menu.querySelectorAll("[data-sort]")) {
       button.hidden = ids.length < 2;
-      button.onclick = () => { close(); sortSelection(button.dataset.sort, pick.zone); };
+      button.onclick = () => { close(); sortSelection(button.dataset.sort); };
     }
+    for (const button of menu.querySelectorAll("[data-layout]")) {
+      button.onclick = () => { close(); applyLayout(button.dataset.layout); };
+    }
+    $("card-action-fit").onclick = () => { close(); for (const zone of new Set(selection.map(({ zone }) => zone))) fitEditorView(zone); };
     menu.hidden = false;
+    anchor.querySelector(".card-menu-toggle")?.setAttribute("aria-expanded", "true");
     menu.style.left = `${Math.max(4, Math.min(x + 5, innerWidth - menu.offsetWidth - 4))}px`;
     menu.style.top = `${Math.max(4, Math.min(y + 5, innerHeight - menu.offsetHeight - 4))}px`;
     if (keyboard) moves.querySelector("button")?.focus();
@@ -304,12 +358,14 @@ function setupPaneDividers() {
 }
 
 function setupArrangement() {
+  setupLayoutControls();
   setupPaneDividers();
+  setupZoneZoom();
   setupSelectionBox($("zones"));
   const openActions = setupCardActions();
-  function selectCard(event, toggle) {
+  function selectCard(event, toggle, optionArtwork = false) {
     const row = event.target.closest("[data-pick]");
-    if (!row || event.target.closest("select,button")) return;
+    if (!row || (!optionArtwork && event.target.closest("select,button"))) return;
     const id = row.dataset.pick;
     if (!toggle && !chosenCards.has(id)) chosenCards.clear();
     if (toggle && chosenCards.has(id)) chosenCards.delete(id);
@@ -318,11 +374,24 @@ function setupArrangement() {
     return row;
   }
   $("zones").addEventListener("click", (event) => {
+    const row = event.target.closest("[data-pick]");
+    const clicked = row && findEditorPick(row.dataset.pick);
+    if (row && event.target.closest(".card-menu-toggle")) {
+      event.stopPropagation(); openActions(row, event.clientX, event.clientY, event.detail === 0); return;
+    }
+    if (event.shiftKey && clicked && traps.has(clicked.cardId) && !isTrapChoice(clicked.cardId)
+      && !event.target.closest("select, .trap-component-toggle")) {
+      event.preventDefault(); event.stopPropagation(); resolveTrap(clicked, clicked.choices || {}); return;
+    }
     const option = event.target.closest("[data-trap-option]");
     if (option) {
       event.preventDefault();
       event.stopPropagation();
-      if (event.ctrlKey || event.metaKey) return;
+      if (!event.shiftKey || event.ctrlKey || event.metaKey) {
+        const selectedRow = selectCard(event, event.ctrlKey || event.metaKey, true);
+        if (selectedRow && !event.ctrlKey && !event.metaKey) openActions(selectedRow, event.clientX, event.clientY);
+        return;
+      }
       const pick = findEditorPick(option.closest("[data-pick]").dataset.pick);
       const origin = trapOrigin(pick);
       if (origin?.choicePath) chooseTrapOption(origin.trap, origin.choicePath, Number(option.dataset.trapOption));
@@ -332,21 +401,12 @@ function setupArrangement() {
     if (button) {
       event.stopPropagation();
       const pick = findEditorPick(button.closest("[data-pick]").dataset.pick);
-      resolveTrap(pick, {});
-      return;
-    }
-    const card = event.target.closest("[data-pick]");
-    const pick = card && findEditorPick(card.dataset.pick);
-    const branch = event.target.closest("[data-trap-branch]");
-    if (pick && traps.has(pick.cardId) && !isTrapChoice(pick.cardId)
-      && !event.target.closest("button,select") && event.shiftKey && !event.ctrlKey && !event.metaKey && branch) {
-      event.stopPropagation();
-      resolveTrap(pick, JSON.parse(branch.dataset.trapBranch));
+      resolveTrap(pick, pick.choices || {});
       return;
     }
     const toggle = event.ctrlKey || event.metaKey || event.shiftKey;
-    const row = selectCard(event, toggle);
-    if (row && !toggle) openActions(row, event.clientX, event.clientY);
+    const selectedRow = selectCard(event, toggle);
+    if (selectedRow && !toggle) openActions(selectedRow, event.clientX, event.clientY);
   });
   $("zones").addEventListener("keydown", (event) => {
     if (!["Space", "Enter"].includes(event.code) || !event.target.closest("[data-pick]") || event.target.closest("select,button")) return;
@@ -379,25 +439,20 @@ function setupArrangement() {
 }
 
 function sortSelection(sort, onlyZone) {
-  const compare = (left, right) => {
-    const a = cardInfo(left.cardId);
-    const b = cardInfo(right.cardId);
-    if (sort === "color" && a.color !== b.color) return Object.keys(colors).indexOf(a.color) - Object.keys(colors).indexOf(b.color);
-    if (sort === "mana" && a.manaValue !== b.manaValue) return a.manaValue - b.manaValue;
-    return a.name.localeCompare(b.name);
-  };
-  for (const zone of onlyZone ? [onlyZone] : zoneKeys) {
-    const picks = [...deckPiles(zone)].sort(([left], [right]) => left - right).flatMap(([, pile]) => pile);
-    const selected = picks.filter(({ id }) => chosenCards.has(String(id))).sort(compare);
-    const positions = picks.map(({ stack, cell }) => ({ stack, cell }));
-    picks.forEach((pick, index) => {
-      const next = chosenCards.has(String(pick.id)) ? selected.shift() : pick;
-      next.order = index;
-      Object.assign(next, positions[index]);
-    });
-  }
-  save();
-  renderEditor();
+  return editorAction(`sort by ${sort}`, () => {
+    const targets = new Set(editorTargets().map(({ id }) => String(id)));
+    for (const zone of onlyZone ? [onlyZone] : zoneKeys) {
+      const picks = [...deckPiles(zone)].sort(([left], [right]) => left - right).flatMap(([, pile]) => pile);
+      if (!picks.some(({ id }) => targets.has(String(id)))) continue;
+      const selected = picks.filter(({ id }) => targets.has(String(id))).sort((a, b) => compareEditorCards(sort, a, b));
+      const positions = picks.map(({ stack, cell }) => ({ stack, cell }));
+      picks.forEach((pick, index) => {
+        const next = targets.has(String(pick.id)) ? selected.shift() : pick;
+        next.order = index; Object.assign(next, positions[index]);
+      });
+    }
+    save(); renderEditor();
+  });
 }
 
 function manaValue(mana) {
