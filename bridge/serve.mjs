@@ -45,7 +45,7 @@ if (allowExpired) {
 }
 
 function apiRoute(path, method) {
-  if (method === "GET") return /^\/api\/(?:db-info|auth\/user|limited\/sessions(?:\/\d+)?|limited\/pools\/\d+|images\/[\w-]+|search|cube-releases\/\d+)\/$/.test(path);
+  if (method === "GET") return /^\/api\/(?:db-info|auth\/user|limited\/sessions(?:\/\d+)?|limited\/pools\/\d+|images\/[\w-]+|search|versioned-cubes(?:\/\d+)?|cube-releases\/\d+)\/$/.test(path);
   return method === "POST" && /^\/api\/(?:auth\/login|limited\/pools\/\d+)\/$/.test(path);
 }
 
