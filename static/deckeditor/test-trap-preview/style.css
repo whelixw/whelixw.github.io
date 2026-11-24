@@ -210,6 +210,14 @@ button:not(:disabled):hover { border-color: var(--accent); }
 .inspect-components .card:has(.choose-trap) .trap-name,
 .card .trap-art-component:is(:hover, :focus-visible) > .trap-name,
 .card .trap-art-option:focus-visible .trap-name { display: block; }
+.show-card-names .trap-name {
+  background: transparent;
+  font-weight: bold;
+  -webkit-text-stroke: 2px #111;
+  paint-order: stroke fill;
+}
+.show-card-names .trap-name[data-count]::before { content: attr(data-count); }
+.show-card-names .trap-name[data-count] + .trap-count { display: none; }
 .card-menu-toggle {
   position: absolute;
   right: 1px;
@@ -272,11 +280,12 @@ button:not(:disabled):hover { border-color: var(--accent); }
 .original-trap-art[data-loaded] + .original-trap-components,
 .original-trap-group { display: flex; flex-direction: column; }
 .original-trap-group { flex: 1 1 0; min-height: 0; }
+.original-trap-components .trap-art-option { flex: 1 1 0; }
 .original-trap-components .trap-art-component { background: transparent; }
 .booster-trap-pick { position: absolute; inset: 0; width: 100%; padding: 0; cursor: grab; }
 .trap-component-toggle { display: none; }
 .card .trap-components { display: none; }
-.inspect-components .card .trap-components,
+.inspect-components:not(.show-card-names) .card .trap-components,
 .card .trap-component-toggle[aria-expanded="true"] + .trap-components {
   display: flex;
   position: absolute;
@@ -359,7 +368,7 @@ button:not(:disabled):hover { border-color: var(--accent); }
   border-color: var(--edge);
   z-index: 3;
 }
-.inspect-components .card .inspect-trap,
+.inspect-components:not(.show-card-names) .card .inspect-trap,
 .show-card-names .card :is(.expand-trap, .choose-trap) { display: none; }
 .card .choose-trap[aria-pressed="true"] { border-color: var(--accent); }
 .zone-cards { user-select: none; }

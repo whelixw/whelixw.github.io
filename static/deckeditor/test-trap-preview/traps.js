@@ -5,6 +5,14 @@ const traps = new Map([
   [demoTrap, { tree: ["AllNode", [[0, 1], [["AnyNode", [[6, 1], [2, 1]]], 1]]] }],
 ]);
 
+function canonicalTrapTree(node) {
+  if (!Array.isArray(node)) return node;
+  const [type, children] = node;
+  const options = children.map(([child, count]) => [canonicalTrapTree(child), count]);
+  options.sort((left, right) => JSON.stringify(left[0]).localeCompare(JSON.stringify(right[0])));
+  return [type, options];
+}
+
 function registerLiveTrap(trap, raw = false) {
   function normalize(node) {
     if (Number.isInteger(node)) return remotePrinting({ id: node });
@@ -15,15 +23,8 @@ function registerLiveTrap(trap, raw = false) {
     }
     return [node.type, children.map(([child, count]) => [normalize(child), count])];
   }
-  function canonicalize(node) {
-    if (!Array.isArray(node)) return node;
-    const [type, children] = node;
-    const options = children.map(([child, count]) => [canonicalize(child), count]);
-    options.sort((left, right) => JSON.stringify(left[0]).localeCompare(JSON.stringify(right[0])));
-    return [type, options];
-  }
   const imageTree = normalize(trap.node);
-  const tree = canonicalize(imageTree);
+  const tree = canonicalTrapTree(imageTree);
   const encoded = btoa(JSON.stringify([trap.intention_type || "", tree])).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
   const id = `t-${encoded}`;
   const previous = traps.get(id);
@@ -89,7 +90,8 @@ function trapArtTree(node, interactive = false, count = 1, parentType = null, ch
   if (!Array.isArray(node)) {
     const name = escapeHtml(cardInfo(node).name);
     const label = (count > 1 ? `${count}× ` : "") + name;
-    const content = `${trapTile(node)}<span class="trap-name">${name}</span>${copies}`;
+    const nameCount = count > 1 ? ` data-count="${count}x "` : "";
+    const content = `${trapTile(node)}<span class="trap-name"${nameCount}>${name}</span>${copies}`;
     return interactive
       ? `<button type="button" class="trap-art-component" data-component="${node}" title="${label}" aria-label="Preview ${label}">${content}</button>`
       : `<span class="trap-art-component" data-component="${node}" title="${label}">${content}</span>`;
@@ -113,7 +115,7 @@ function originalTrapImage(id) {
     ? `${bridgeOrigin}/cubeapp/api/images/${imageId}/?type=trap&size_slug=medium` : "";
 }
 
-function originalTrapHitAreas(node) {
+function originalTrapHitAreas(node, optionIndexes) {
   if (!Array.isArray(node)) {
     const name = cardInfo(node).name;
     return { name, markup: `<span class="trap-art-component" data-component="${node}" title="${escapeHtml(name)}"></span>` };
@@ -124,7 +126,14 @@ function originalTrapHitAreas(node) {
   rows.sort((left, right) => (left.name > right.name) - (left.name < right.name));
   const name = rows.map(({ name, child, count }) =>
     (count > 1 ? `${count}x` : "") + name + (Array.isArray(child) ? ` ${child[0]}` : "")).join("");
-  const markup = rows.map(({ markup, child, count }) => Array.isArray(child) ? markup.repeat(count) : markup).join("");
+  const markup = rows.map(({ markup, child, count }) => {
+    if (optionIndexes) {
+      const label = escapeHtml(trapSummary(child));
+      const index = optionIndexes.get(JSON.stringify(canonicalTrapTree(child)));
+      markup = `<button type="button" class="trap-art-option" data-trap-option="${index}" title="Choose ${label}" aria-label="Choose ${label}">${markup}</button>`;
+    }
+    return Array.isArray(child) ? markup.repeat(count) : markup;
+  }).join("");
   return { name, markup: `<span class="original-trap-group">${markup}</span>` };
 }
 
@@ -132,8 +141,12 @@ function trapFace(id, interactive = true, deck = false) {
   const { tree, imageTree } = traps.get(id);
   const chooseOptions = deck && isTrapChoice(id);
   const overlay = interactive && !chooseOptions ? trapComponentSelector(id) : "";
-  const source = deck && !chooseOptions ? originalTrapImage(id) : "";
-  const original = source ? `<img class="original-trap-art" src="${escapeHtml(source)}" alt="" draggable="false" loading="lazy"><span class="original-trap-components">${originalTrapHitAreas(imageTree || tree).markup}</span>` : "";
+  const source = deck ? originalTrapImage(id) : "";
+  let original = "";
+  if (source) {
+    const optionIndexes = chooseOptions ? new Map(tree[1].map(([child], index) => [JSON.stringify(child), index])) : null;
+    original = `<img class="original-trap-art" src="${escapeHtml(source)}" alt="" draggable="false" loading="lazy"><span class="original-trap-components">${originalTrapHitAreas(imageTree || tree, optionIndexes).markup}</span>`;
+  }
   return `<span class="trap-face"><span class="trap-art-strip">${trapArtTree(tree, false, 1, null, chooseOptions)}</span>${original}</span>${overlay}`;
 }
 
@@ -196,11 +209,12 @@ function visitTrap(node, choices, visit, path = "root", choicePath) {
 
 function trapLeaves(pick, choices = pick.choices || {}) {
   const leaves = [];
-  visitTrap(traps.get(pick.cardId).tree, choices, (node, path, choicePath) => {
+  const { tree, imageId, imageTree } = traps.get(pick.cardId);
+  visitTrap(tree, choices, (node, path, choicePath) => {
     if (!Array.isArray(node)) leaves.push({ cardId: node, path, choicePath });
     else if (node[0] === "AnyNode" && !node[1][choices[path]]) {
       const cardId = `t-option-${pick.cardId}-${path}`;
-      traps.set(cardId, { tree: node, option: true });
+      traps.set(cardId, { tree: node, option: true, ...(path === "root" ? { imageId, imageTree } : {}) });
       leaves.push({ cardId, path, choicePath: path });
     }
   });
