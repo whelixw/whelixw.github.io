@@ -66,6 +66,11 @@ function cardFace(id, deck = false) {
 function useImageFallback(container) {
   for (const img of container.querySelectorAll("img, .trap-artwork image")) {
     img.addEventListener("error", () => img.remove(), { once: true });
+    if (img.classList.contains("original-trap-art")) {
+      const showOriginal = () => { img.dataset.loaded = ""; };
+      img.addEventListener("load", showOriginal, { once: true });
+      if (img.complete && img.naturalWidth) showOriginal();
+    }
     if (img.complete && !img.naturalWidth) img.remove();
   }
 }

@@ -13,16 +13,22 @@ function registerLiveTrap(trap, raw = false) {
     if (!["AllNode", "AnyNode"].includes(node.type) || !Array.isArray(children)) {
       throw new Error("Cubeapp returned an unsupported trap node.");
     }
-    const options = children.map(([child, count]) => [normalize(child), count]);
-    options.sort((left, right) => JSON.stringify(left[0]).localeCompare(JSON.stringify(right[0])));
-    return [node.type, options];
+    return [node.type, children.map(([child, count]) => [normalize(child), count])];
   }
-  const tree = normalize(trap.node);
+  function canonicalize(node) {
+    if (!Array.isArray(node)) return node;
+    const [type, children] = node;
+    const options = children.map(([child, count]) => [canonicalize(child), count]);
+    options.sort((left, right) => JSON.stringify(left[0]).localeCompare(JSON.stringify(right[0])));
+    return [type, options];
+  }
+  const imageTree = normalize(trap.node);
+  const tree = canonicalize(imageTree);
   const encoded = btoa(JSON.stringify([trap.intention_type || "", tree])).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
   const id = `t-${encoded}`;
   const previous = traps.get(id);
   const imageId = typeof trap.id === "string" && /^[a-z0-9_-]+$/i.test(trap.id) ? trap.id : previous?.imageId;
-  traps.set(id, { tree, imageId, wire: raw ? trap : previous?.wire });
+  traps.set(id, { tree, imageId, imageTree, wire: raw ? trap : previous?.wire });
   return id;
 }
 
@@ -101,11 +107,34 @@ function trapArtTree(node, interactive = false, count = 1, parentType = null, ch
   </span>`;
 }
 
+function originalTrapImage(id) {
+  const { imageId } = traps.get(id);
+  return imageId && $("show-card-names").checked
+    ? `${bridgeOrigin}/cubeapp/api/images/${imageId}/?type=trap&size_slug=medium` : "";
+}
+
+function originalTrapHitAreas(node) {
+  if (!Array.isArray(node)) {
+    const name = cardInfo(node).name;
+    return { name, markup: `<span class="trap-art-component" data-component="${node}" title="${escapeHtml(name)}"></span>` };
+  }
+  const [, children] = node;
+  // Cubeapp sorts the image rows by card name or the nested group's name.
+  const rows = children.map(([child, count]) => ({ ...originalTrapHitAreas(child), child, count }));
+  rows.sort((left, right) => (left.name > right.name) - (left.name < right.name));
+  const name = rows.map(({ name, child, count }) =>
+    (count > 1 ? `${count}x` : "") + name + (Array.isArray(child) ? ` ${child[0]}` : "")).join("");
+  const markup = rows.map(({ markup, child, count }) => Array.isArray(child) ? markup.repeat(count) : markup).join("");
+  return { name, markup: `<span class="original-trap-group">${markup}</span>` };
+}
+
 function trapFace(id, interactive = true, deck = false) {
-  const { tree } = traps.get(id);
+  const { tree, imageTree } = traps.get(id);
   const chooseOptions = deck && isTrapChoice(id);
   const overlay = interactive && !chooseOptions ? trapComponentSelector(id) : "";
-  return `<span class="trap-face"><span class="trap-art-strip">${trapArtTree(tree, false, 1, null, chooseOptions)}</span></span>${overlay}`;
+  const source = deck && !chooseOptions ? originalTrapImage(id) : "";
+  const original = source ? `<img class="original-trap-art" src="${escapeHtml(source)}" alt="" draggable="false" loading="lazy"><span class="original-trap-components">${originalTrapHitAreas(imageTree || tree).markup}</span>` : "";
+  return `<span class="trap-face"><span class="trap-art-strip">${trapArtTree(tree, false, 1, null, chooseOptions)}</span>${original}</span>${overlay}`;
 }
 
 function showTrapPreview(id) {
@@ -114,9 +143,8 @@ function showTrapPreview(id) {
   inspect.hidden = false;
   inspect.onclick = () => openTrap(id);
 
-  const { imageId, tree } = traps.get(id);
-  const originalImage = imageId && $("show-card-names").checked
-    ? `${bridgeOrigin}/cubeapp/api/images/${imageId}/?type=trap&size_slug=medium` : "";
+  const { tree } = traps.get(id);
+  const originalImage = originalTrapImage(id);
   if (originalImage && preview.firstElementChild?.dataset.originalImage === originalImage) return;
 
   preview.innerHTML = `<div class="preview-trap-art">${trapFace(id, false)}</div>`;

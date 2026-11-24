@@ -380,6 +380,7 @@ function setupArrangement() {
   names.addEventListener("change", () => {
     showNames();
     try { localStorage.setItem("deckeditor-show-card-names", String(names.checked)); } catch {}
+    renderEditor();
     if (traps.has(previewed)) showTrapPreview(previewed);
   });
   setupSelectionBox($("zones"));
