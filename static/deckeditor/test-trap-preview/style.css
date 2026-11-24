@@ -207,7 +207,7 @@ button:not(:disabled):hover { border-color: var(--accent); }
 }
 .show-card-names .trap-name,
 .choosing-trap .trap-name,
-.inspect-components .card:has(.choose-trap) .trap-name,
+.inspect-components .trap-name,
 .card .trap-art-component:is(:hover, :focus-visible) > .trap-name,
 .card .trap-art-option:focus-visible .trap-name { display: block; }
 .show-card-names .trap-name {
