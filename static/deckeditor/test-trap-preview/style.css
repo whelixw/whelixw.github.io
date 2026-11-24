@@ -207,7 +207,6 @@ button:not(:disabled):hover { border-color: var(--accent); }
 }
 .show-card-names .trap-name,
 .choosing-trap .trap-name,
-.inspect-components .trap-name,
 .card .trap-art-component:is(:hover, :focus-visible) > .trap-name,
 .card .trap-art-option:focus-visible .trap-name { display: block; }
 .show-card-names .trap-name {
@@ -217,7 +216,8 @@ button:not(:disabled):hover { border-color: var(--accent); }
   paint-order: stroke fill;
 }
 .show-card-names .trap-name[data-count]::before { content: attr(data-count); }
-.show-card-names .trap-name[data-count] + .trap-count { display: none; }
+.show-card-names:not(.inspect-components) .trap-name[data-count] + .trap-count { display: none; }
+.inspect-components .trap-name { visibility: hidden; }
 .card-menu-toggle {
   position: absolute;
   right: 1px;
@@ -269,15 +269,16 @@ button:not(:disabled):hover { border-color: var(--accent); }
   object-fit: contain;
   pointer-events: none;
 }
-.original-trap-art:not([data-loaded]) { visibility: hidden; }
-.trap-face:has(> .original-trap-art[data-loaded]) > .trap-art-strip { visibility: hidden; }
+.original-trap-art:not([data-loaded]), .inspect-components .original-trap-art { visibility: hidden; }
+body:not(.inspect-components) .trap-face:has(> .original-trap-art[data-loaded]) > .trap-art-strip,
+body:not(.inspect-components) .preview-trap-art:has(> .original-trap-art[data-loaded]) > .trap-face { visibility: hidden; }
 .original-trap-components {
   display: none;
   position: absolute;
   /* The medium Cubeapp image has an 11px top and bottom inset on a 520px canvas. */
   inset: calc(100% * 11 / 520) 0;
 }
-.original-trap-art[data-loaded] + .original-trap-components,
+body:not(.inspect-components) .original-trap-art[data-loaded] + .original-trap-components,
 .original-trap-group { display: flex; flex-direction: column; }
 .original-trap-group { flex: 1 1 0; min-height: 0; }
 .original-trap-components .trap-art-option { flex: 1 1 0; }

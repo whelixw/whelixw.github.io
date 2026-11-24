@@ -93,8 +93,8 @@ function trapArtTree(node, interactive = false, count = 1, parentType = null, ch
     const nameCount = count > 1 ? ` data-count="${count}x "` : "";
     const content = `${trapTile(node)}<span class="trap-name"${nameCount}>${name}</span>${copies}`;
     return interactive
-      ? `<button type="button" class="trap-art-component" data-component="${node}" title="${label}" aria-label="Preview ${label}">${content}</button>`
-      : `<span class="trap-art-component" data-component="${node}" title="${label}">${content}</span>`;
+      ? `<button type="button" class="trap-art-component" data-component="${node}" aria-label="Preview ${label}">${content}</button>`
+      : `<span class="trap-art-component" data-component="${node}">${content}</span>`;
   }
   const [type, children] = node;
   const any = type === "AnyNode";
@@ -104,7 +104,7 @@ function trapArtTree(node, interactive = false, count = 1, parentType = null, ch
       if (!chooseOptions) return trapArtTree(child, interactive, any ? 1 : quantity, type);
       const member = trapComponents(child)[0];
       const summary = escapeHtml(trapSummary(child));
-      return `<button type="button" class="trap-art-option" data-trap-option="${index}" ${member === undefined ? "" : `data-component="${member}"`} title="Choose ${summary}" aria-label="Choose ${summary}">${trapArtTree(child, false, 1, type)}</button>`;
+      return `<button type="button" class="trap-art-option" data-trap-option="${index}" ${member === undefined ? "" : `data-component="${member}"`} aria-label="Choose ${summary}">${trapArtTree(child, false, 1, type)}</button>`;
     }).join("")}</span>
   </span>`;
 }
@@ -118,7 +118,7 @@ function originalTrapImage(id) {
 function originalTrapHitAreas(node, optionIndexes) {
   if (!Array.isArray(node)) {
     const name = cardInfo(node).name;
-    return { name, markup: `<span class="trap-art-component" data-component="${node}" title="${escapeHtml(name)}"></span>` };
+    return { name, markup: `<span class="trap-art-component" data-component="${node}"></span>` };
   }
   const [, children] = node;
   // Cubeapp sorts the image rows by card name or the nested group's name.
@@ -130,7 +130,7 @@ function originalTrapHitAreas(node, optionIndexes) {
     if (optionIndexes) {
       const label = escapeHtml(trapSummary(child));
       const index = optionIndexes.get(JSON.stringify(canonicalTrapTree(child)));
-      markup = `<button type="button" class="trap-art-option" data-trap-option="${index}" title="Choose ${label}" aria-label="Choose ${label}">${markup}</button>`;
+      markup = `<button type="button" class="trap-art-option" data-trap-option="${index}" aria-label="Choose ${label}">${markup}</button>`;
     }
     return Array.isArray(child) ? markup.repeat(count) : markup;
   }).join("");
@@ -167,9 +167,13 @@ function showTrapPreview(id) {
   const art = preview.firstElementChild;
   art.dataset.originalImage = originalImage;
   const image = document.createElement("img");
+  image.className = "original-trap-art";
   image.alt = trapSummary(tree);
   image.draggable = false;
-  image.addEventListener("load", () => art.replaceChildren(image), { once: true });
+  image.addEventListener("load", () => {
+    image.dataset.loaded = "";
+    art.append(image);
+  }, { once: true });
   image.src = originalImage;
 }
 
