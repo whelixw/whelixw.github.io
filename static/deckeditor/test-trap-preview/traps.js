@@ -167,13 +167,9 @@ function showTrapPreview(id) {
   const art = preview.firstElementChild;
   art.dataset.originalImage = originalImage;
   const image = document.createElement("img");
-  image.className = "original-trap-art";
   image.alt = trapSummary(tree);
   image.draggable = false;
-  image.addEventListener("load", () => {
-    image.dataset.loaded = "";
-    art.append(image);
-  }, { once: true });
+  image.addEventListener("load", () => art.replaceChildren(image), { once: true });
   image.src = originalImage;
 }
 
