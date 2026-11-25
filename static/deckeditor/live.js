@@ -6,6 +6,10 @@ const bridgeUrl = URL.canParse(configuredBridge) ? new URL(configuredBridge) : n
 const bridgeOrigin = bridgeUrl?.protocol === "https:" ? bridgeUrl.origin : "";
 const localBridge = location.protocol === "http:" && location.hostname === "127.0.0.1";
 const liveAvailable = Boolean(bridgeOrigin || localBridge);
+if (bridgeOrigin) {
+  // Wake the hosted bridge while the user gets to sign-in. Health checks need no credentials or CORS preflight.
+  void fetch(`${bridgeOrigin}/healthz`, { mode: "no-cors", credentials: "omit", cache: "no-store" }).catch(() => {});
+}
 let account = null;
 let lobbySocket = null;
 let draftSocket = null;
