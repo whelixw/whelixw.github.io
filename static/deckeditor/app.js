@@ -13,6 +13,13 @@ const cards = [
   ["Delver of Secrets", "Creature", "U"],
 ];
 const colors = { R: "#e57e61", U: "#5bafdb", G: "#75b78b", W: "#e1cc9d", B: "#ae8cd2", C: "#b3b6c3", M: "#dbad60" };
+const practiceBasics = new Map([
+  ["Plains", "W"], ["Island", "U"], ["Swamp", "B"], ["Mountain", "R"], ["Forest", "G"],
+].map(([name, symbol]) => {
+  const type = `Basic Land — ${name}`;
+  return [`b-${symbol}`, { name, type, color: "C", frameColor: symbol, manaValue: 0,
+    faces: [{ name, type, oracle: `{T}: Add {${symbol}}.` }] }];
+}));
 const labels = { pool: "Pool", main: "Main deck", side: "Sideboard" };
 const zoneKeys = Object.keys(labels);
 const picksPerPack = 4;
@@ -31,11 +38,12 @@ let activeLive = null;
 const remoteCards = new Map();
 
 function cardKey(value) {
-  return /^[pt]/.test(value) ? value : Number(value);
+  return /^[bpt]/.test(value) ? value : Number(value);
 }
 
 function cardInfo(id) {
   if (traps.has(id)) return { ...trapInfo(id), manaValue: Infinity };
+  if (practiceBasics.has(id)) return practiceBasics.get(id);
   const remote = remoteCards.get(id);
   if (remote) return { ...remote, manaValue: remote.manaValue ?? manaValue(remote.faces[0].mana) };
   const [name, type, color] = cards[id];
@@ -49,14 +57,20 @@ function escapeHtml(value) {
 
 function cardFace(id, deck = false) {
   if (traps.has(id)) return trapFace(id, true, deck);
-  const { name, type, color, faces } = cardInfo(id);
-  return `<span class="fallback" aria-hidden="true" style="--card-color:${colors[color] || colors.C}">${escapeHtml(name)}<small>${escapeHtml(type)}</small></span>
-    <img src="${escapeHtml(faces[0].image)}" alt="" draggable="false">`;
+  const { name, type, color, frameColor = color, faces } = cardInfo(id);
+  const fallback = `<span class="fallback" aria-hidden="true" style="--card-color:${colors[frameColor] || colors.C}">${escapeHtml(name)}<small>${escapeHtml(type)}</small></span>`;
+  if (!faces[0].image) return fallback;
+  return `${fallback}<img src="${escapeHtml(faces[0].image)}" alt="" draggable="false">`;
 }
 
 function useImageFallback(container) {
   for (const img of container.querySelectorAll("img, .trap-artwork image")) {
     img.addEventListener("error", () => img.remove(), { once: true });
+    if (img.classList.contains("original-trap-art")) {
+      const showOriginal = () => { img.dataset.loaded = ""; };
+      img.addEventListener("load", showOriginal, { once: true });
+      if (img.complete && img.naturalWidth) showOriginal();
+    }
     if (img.complete && !img.naturalWidth) img.remove();
   }
 }
@@ -73,6 +87,11 @@ function showPreview(id, component = null) {
 }
 
 function renderFace(container, face) {
+  if (!face.image) {
+    container.innerHTML = "<figure><figcaption></figcaption></figure>";
+    container.querySelector("figcaption").textContent = face.name;
+    return;
+  }
   container.innerHTML = '<figure><div class="preview-face"><img draggable="false"></div><figcaption></figcaption></figure>';
   const image = container.querySelector("img");
   image.addEventListener("error", () => image.closest(".preview-face").hidden = true, { once: true });
@@ -209,20 +228,27 @@ function notice(message) {
   $("notice").textContent = message + (storageAvailable ? "" : " Browser storage is unavailable.");
 }
 
+function practiceDraftPicks() {
+  return draft.picks.filter(({ addedBasic }) => !addedBasic);
+}
+
 function complete() {
-  return activeLive ? draft.finished : draft.picks.length >= pickLimit;
+  return activeLive ? draft.finished : practiceDraftPicks().length >= pickLimit;
 }
 
 function currentRound() {
-  return Math.floor(draft.picks.length / picksPerPack);
+  return Math.floor(practiceDraftPicks().length / picksPerPack);
 }
 
 function confirmPick(cardId, zone = "main", automatic = false, cell) {
   if (complete() || !draft.available.includes(cardId)) return;
+  cell = destinationCell(zone, cell);
   if (activeLive) return activeLive.pick(cardId, zone, cell);
 
   const round = currentRound();
-  draft.picks.push({ id: draft.picks.length, cardId, zone, cell, pack: [...draft.available] });
+  const pick = { id: practiceDraftPicks().length, cardId, zone, pack: [...draft.available] };
+  placeCards([pick], zone, cell);
+  draft.picks.push(pick);
   draft.available.splice(draft.available.indexOf(cardId), 1);
   if (complete()) {
     draft.available = [];
@@ -237,28 +263,33 @@ function confirmPick(cardId, zone = "main", automatic = false, cell) {
   notice(automatic ? `Time expired. ${name} went to Main deck.` : `Picked ${name} into ${labels[zone]}.`);
 }
 
-function changeZone(pick, zone) {
-  if (pick.zone === zone) return false;
-  draft.moves.push({ id: String(pick.id), from: pick.zone, order: pick.order, stack: pick.stack, cell: pick.cell });
+function addPracticeBasics(cardId, quantity) {
+  if (activeLive || !practiceBasics.has(cardId) || !Number.isInteger(quantity) || quantity < 1 || quantity > 99) return;
+  editorAction("add basic lands", () => {
+    const zone = "main";
+    const picks = Array.from({ length: quantity }, () => ({
+      id: crypto.randomUUID(), cardId, zone, addedBasic: true,
+    }));
+    placeCards(picks, zone, destinationCell(zone));
+    draft.picks.push(...picks);
+    draft.submitted = false;
+    save();
+    renderEditor();
+    renderSubmission();
+  });
+}
+
+function changeZone(pick, zone, state) {
+  state.moves.push({ id: String(pick.id), from: pick.zone, order: pick.order, stack: pick.stack, cell: pick.cell });
   pick.zone = zone;
   delete pick.order;
   delete pick.stack;
   delete pick.cell;
-  draft.submitted = false;
-  return true;
-}
-
-function moveCard(id, zone) {
-  if (!editorActionDepth) return editorAction("move card", () => moveCard(id, zone));
-  const pick = findEditorPick(id);
-  if (!pick || !changeZone(pick, zone)) return;
-  save();
-  renderEditor();
-  renderSubmission();
-  notice(`Moved ${cardInfo(pick.cardId).name} to ${labels[zone]}.`);
+  state.submitted = false;
 }
 
 function renderPack() {
+  $("booster-actions").hidden = true;
   const round = currentRound();
   $("progress").innerHTML = activeLive ? "" : Array.from({ length: practicePackCount }, (_, index) =>
     `<span class="${index < round ? "done" : index === round ? "active" : ""}">${index < round ? "✓ " : ""}Pack ${index + 1}</span>`
@@ -275,7 +306,7 @@ function renderPack() {
   const packLabel = packNumber ? `Pack ${packNumber}${packTotal ? ` of ${packTotal}` : ""}` : "";
   const pickLabel = activeLive
     ? (draft.available.length ? `Pick ${draft.picks.length + 1}` : "Waiting for booster")
-    : `Pick ${draft.picks.length % picksPerPack + 1} / ${picksPerPack}`;
+    : `Pick ${practiceDraftPicks().length % picksPerPack + 1} / ${picksPerPack}`;
   $("pack-label").textContent = [packLabel, pickLabel].filter(Boolean).join(" · ");
   pack.innerHTML = draft.available.map((id) => {
     const name = escapeHtml(cardInfo(id).name);
@@ -289,21 +320,21 @@ function renderPack() {
     return `<button type="button" class="booster-card card" data-card="${id}" data-preview="${id}" draggable="true" aria-label="${name}" aria-pressed="false">${cardFace(id)}</button>`;
   }).join("");
   renderPackGhosts();
+  pack.style.setProperty("--pack-count", Math.max(1, pack.children.length));
   useImageFallback(pack);
   renderSelection();
   renderTimer();
 }
 
 function renderSelection() {
-  $("booster-selection-count").textContent = selected === null ? "0 selected" : "1 selected";
   for (const [index, card] of [...pack.children].entries()) {
     const control = card.querySelector(".booster-trap-pick") || card;
     control.setAttribute("aria-pressed", String(index === selectedBoosterIndex && cardKey(card.dataset.card) === selected));
   }
   $("pick").disabled = selected === null || Boolean(activeLive?.pending);
   $("pick-hint").textContent = selected === null
-    ? "Select a card, double-click to pick, or drag it into any deck zone."
-    : `${cardInfo(selected).name} selected · Pick into Main deck or drag into Sideboard.`;
+    ? "Double-click to pick. Right-click for pick destinations."
+    : `${cardInfo(selected).name} selected · Drag to a cell to place it there.`;
 }
 
 function renderEditor() {
@@ -313,7 +344,7 @@ function renderEditor() {
     const canvas = pane.querySelector(".zone-cards");
     return [pane.dataset.zone, { left: canvas.scrollLeft, top: canvas.scrollTop }];
   }));
-  $("total").textContent = activeLive ? `${draft.picks.length} cards` : `${draft.picks.length} / ${pickLimit} picked`;
+  $("total").textContent = activeLive ? `${draft.picks.length} cards` : `${practiceDraftPicks().length} / ${pickLimit} picked`;
   updateEditorHistoryControls();
   $("export").disabled = !deckPrintings().length && !hasUnresolvedDeckTraps();
   zones.innerHTML = zoneKeys.map((zone) => {
@@ -321,11 +352,12 @@ function renderEditor() {
     const count = orderedZone(zone).length;
     function renderCard({ id, cardId }) {
       const { name } = cardInfo(cardId);
-      const trap = traps.has(cardId);
+      const trapControl = !traps.has(cardId) ? "" : isTrapChoice(cardId)
+        ? '<button type="button" class="inspect-trap choose-trap" aria-pressed="false">Choose</button>'
+        : '<button type="button" class="inspect-trap expand-trap" title="Expand this trap into deck cards">Expand</button>';
       return `<div class="card${chosenCards.has(String(id)) ? " chosen" : ""}" tabindex="0" aria-label="${escapeHtml(name)}" draggable="true" data-pick="${id}" data-preview="${cardId}">
         ${cardFace(cardId, true)}
-        ${trap && !isTrapChoice(cardId) ? '<button type="button" class="inspect-trap" title="Expand this trap into deck cards">Expand</button>' : ""}
-        ${isTrapChoice(cardId) ? '<button type="button" class="choose-trap" aria-pressed="false" title="Show names and choose a component; leaving the card cancels">Choose</button>' : ""}
+        ${trapControl}
         <button type="button" class="card-menu-toggle" aria-label="Selection actions" aria-haspopup="true" aria-expanded="false" aria-controls="card-actions"></button>
       </div>`;
     }
@@ -449,6 +481,38 @@ pack.addEventListener("dblclick", (event) => {
 });
 $("pick").addEventListener("click", () => confirmPick(selected));
 
+const boosterActions = $("booster-actions");
+let boosterActionCard;
+pack.addEventListener("contextmenu", (event) => {
+  const card = event.target.closest("[data-card]");
+  if (!card || activeLive?.pending) return;
+  event.preventDefault();
+  boosterActionCard = card;
+  selected = cardKey(card.dataset.card);
+  selectedBoosterIndex = [...pack.children].indexOf(card);
+  renderSelection();
+  const keyboard = !event.clientX && !event.clientY;
+  const bounds = keyboard && card.getBoundingClientRect();
+  showCardMenu(boosterActions, bounds ? bounds.left : event.clientX, bounds ? bounds.bottom : event.clientY);
+  boosterActions.querySelector("button")?.focus();
+});
+boosterActions.addEventListener("click", (event) => {
+  const zone = event.target.closest("[data-pick-zone]")?.dataset.pickZone;
+  if (!zone) return;
+  boosterActions.hidden = true;
+  confirmPick(selected, zone);
+  if (activeLive?.pending) boosterActionCard?.focus();
+  else (pack.querySelector(".booster-trap-pick, button.booster-card") || $("draft-status-open")).focus();
+});
+document.addEventListener("pointerdown", (event) => {
+  if (!boosterActions.hidden && !boosterActions.contains(event.target)) boosterActions.hidden = true;
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape" || boosterActions.hidden) return;
+  boosterActions.hidden = true;
+  (boosterActionCard?.querySelector(".booster-trap-pick") || boosterActionCard)?.focus();
+});
+
 function startDrag(event, payload) {
   drag = payload;
   event.dataTransfer.effectAllowed = "move";
@@ -473,45 +537,36 @@ zones.addEventListener("dragstart", (event) => {
 });
 zones.addEventListener("dragover", (event) => {
   const zone = event.target.closest("[data-zone]");
-  if (!zone || !drag) return;
+  const slot = event.target.closest("[data-cell]");
+  if (!zone || !slot || !drag) return;
   event.preventDefault();
   event.dataTransfer.dropEffect = "move";
   zone.classList.add("over");
-  const card = event.target.closest("[data-pick]");
-  const slot = event.target.closest("[data-cell]");
   const lastSlot = zones.querySelector(".slot-target");
   if (lastSlot !== slot) lastSlot?.classList.remove("slot-target");
-  slot?.classList.add("slot-target");
-  const target = drag.type === "picked" && card && !drag.ids.includes(card.dataset.pick) ? card : null;
-  const previous = zones.querySelector(".stack-target");
-  if (previous !== target) previous?.classList.remove("stack-target");
-  target?.classList.add("stack-target");
+  slot.classList.add("slot-target");
 });
 zones.addEventListener("dragleave", (event) => {
   const zone = event.target.closest("[data-zone]");
   if (zone && !zone.contains(event.relatedTarget)) zone.classList.remove("over");
-  const card = event.target.closest(".stack-target");
-  if (card && !card.contains(event.relatedTarget)) card.classList.remove("stack-target");
   const slot = event.target.closest(".slot-target");
   if (slot && !slot.contains(event.relatedTarget)) slot.classList.remove("slot-target");
 });
 zones.addEventListener("drop", (event) => {
   const zone = event.target.closest("[data-zone]");
-  if (!zone || !drag) return;
+  const slot = event.target.closest("[data-cell]");
+  if (!zone || !slot || !drag) return;
   event.preventDefault();
   zone.classList.remove("over");
-  zones.querySelector(".stack-target")?.classList.remove("stack-target");
-  const slot = event.target.closest("[data-cell]");
-  const cell = slot ? Number(slot.dataset.cell) : undefined;
-  const target = event.target.closest("[data-pick]") || slot?.querySelector(".pile > :last-child");
-  if (drag.type === "booster") confirmPick(drag.id, zone.dataset.zone, false, target ? undefined : cell);
-  else arrangeDrop(drag.ids, zone.dataset.zone, target?.dataset.pick, cell);
+  slot.classList.remove("slot-target");
+  const cell = Number(slot.dataset.cell);
+  if (drag.type === "booster") confirmPick(drag.id, zone.dataset.zone, false, cell);
+  else arrangeDrop(drag.ids, zone.dataset.zone, cell);
   drag = null;
 });
 document.addEventListener("dragend", () => {
   drag = null;
   for (const zone of zones.querySelectorAll(".over")) zone.classList.remove("over");
-  zones.querySelector(".stack-target")?.classList.remove("stack-target");
   zones.querySelector(".slot-target")?.classList.remove("slot-target");
 });
 $("undo").addEventListener("click", () => replayEditorAction("undo"));
@@ -555,3 +610,4 @@ setInterval(() => {
   if (!activeLive && draft.deadline <= Date.now()) confirmPick(draft.available[0], "main", true);
   else renderTimer();
 }, 250);
+

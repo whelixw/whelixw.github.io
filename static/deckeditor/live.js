@@ -283,7 +283,7 @@ function liveStatus(message) {
   $("live-status").textContent = message;
 }
 
-async function cubeRequest(path, body) {
+async function cubeRequest(path, body, onResponse) {
   const headers = { Accept: "application/json" };
   if (account) headers.Authorization = `Token ${account.token}`;
   if (body) headers["Content-Type"] = "application/json";
@@ -292,6 +292,7 @@ async function cubeRequest(path, body) {
     method: body ? "POST" : "GET",
     body: body ? JSON.stringify(body) : undefined,
   });
+  onResponse?.();
   const data = await response.json().catch(() => null);
   if (!response.ok) {
     const message = data?.errors?.join(" ") || data?.detail || (typeof data === "string" ? data : null);
@@ -432,10 +433,9 @@ function liveWorkspace(key, finished = false) {
     addBasic(printing, quantity, zone) {
       if (!editorActionDepth) return editorAction("add basic lands", () => this.addBasic(printing, quantity, zone));
       const cardId = remotePrinting(printing);
-      const stack = quantity > 1 ? crypto.randomUUID() : undefined;
-      for (let copy = 0; copy < quantity; copy += 1) {
-        this.state.picks.push({ id: nextPickId++, cardId, zone, stack, addedPrinting: printing });
-      }
+      const picks = Array.from({ length: quantity }, () => ({ id: nextPickId++, cardId, zone, addedPrinting: printing }));
+      placeCards(picks, zone, destinationCell(zone, undefined, this.state), this.state);
+      this.state.picks.push(...picks);
       this.state.submitted = false;
       save();
       renderEditor();
@@ -449,8 +449,9 @@ function liveWorkspace(key, finished = false) {
     add(cardId, zone = "main", cell) {
       const id = nextPickId++;
       const prior = placements.get(cardId)?.shift();
-      const pick = { cell, ...prior, id, cardId, zone: prior?.zone || zone };
+      const pick = { ...prior, id, cardId, zone: prior?.zone || zone };
       if (pick.members) pick.members = pick.members.map((member, index) => ({ ...member, id: `${id}:${index}` }));
+      if (cell !== undefined && !prior) placeCards([pick], zone, cell, this.state);
       this.state.picks.push(pick);
     },
   };
@@ -705,7 +706,7 @@ function showLobbies() {
   $("live-lobbies-status").textContent = list.children.length ? "" : "No current draft lobbies.";
 }
 
-function connectLobbies() {
+function connectLobbies(mark) {
   lobbiesAuthenticated = false;
   $("live-host-submit").disabled = true;
   lobbySocket?.close();
@@ -713,7 +714,11 @@ function connectLobbies() {
   $("live-lobbies-reconnect").hidden = true;
   const socket = openSocket("lobbies");
   lobbySocket = socket;
-  socket.addEventListener("open", () => socket.send(JSON.stringify({ type: "authentication", token: account.token })));
+  socket.addEventListener("open", () => {
+    if (socket !== lobbySocket) return;
+    mark?.("lobby-socket-open");
+    socket.send(JSON.stringify({ type: "authentication", token: account.token }));
+  });
   socket.addEventListener("message", ({ data }) => {
     if (socket !== lobbySocket) return;
     const message = JSON.parse(data);
@@ -723,6 +728,7 @@ function connectLobbies() {
       return;
     }
     if (message.type === "all_lobbies") {
+      if (!lobbiesAuthenticated) mark?.("lobbies-received");
       lobbiesAuthenticated = true;
       $("live-host").hidden = false;
       if (!hostCubes.length && !hostLoading) editHostedLobby();
@@ -754,7 +760,7 @@ function connectLobbies() {
   });
 }
 
-async function loadPoolEvents(reset = false) {
+async function loadPoolEvents(reset = false, mark) {
   if (!account || poolsLoading) return;
   const list = $("live-pools");
   const status = $("live-pools-status");
@@ -766,7 +772,7 @@ async function loadPoolEvents(reset = false) {
   status.textContent = "Loading your events…";
   try {
     const query = new URLSearchParams({ players_filter: account.user.username, limit: 15, offset: poolsOffset });
-    const page = await cubeRequest(`limited/sessions/?${query}`);
+    const page = await cubeRequest(`limited/sessions/?${query}`, undefined, () => mark?.("pools-headers"));
     if (reset) list.replaceChildren();
     for (const session of page.results) {
       const row = document.createElement("div");
@@ -795,6 +801,7 @@ async function loadPoolEvents(reset = false) {
     poolsOffset += page.results.length;
     more.hidden = !page.next;
     status.textContent = list.children.length ? "" : "No draft or sealed pools found for your account.";
+    mark?.("pools-loaded");
   } catch (error) {
     status.textContent = error.message;
   } finally {
@@ -803,7 +810,7 @@ async function loadPoolEvents(reset = false) {
   }
 }
 
-$("live-lobbies-reconnect").addEventListener("click", connectLobbies);
+$("live-lobbies-reconnect").addEventListener("click", () => connectLobbies());
 liveForm("live-host-form", submitHostedDraft, (message) => { $("live-host-status").textContent = message; });
 $("live-host-cancel").addEventListener("click", () => editHostedLobby());
 $("live-host-reload").addEventListener("click", () => loadHostCubes(editingLobby ? lobbies.get(editingLobby) : null));
@@ -853,9 +860,22 @@ async function showSearchResults(name, exact = false) {
   list.replaceChildren();
   searchStatus("Searching…");
   const workspace = activeLive;
-  const results = liveAvailable
-    ? (await searchCards(name)).filter((card) => !exact || card.name === name).map((card) => ({ ...card, cardId: remotePrinting(card) }))
-    : cards.flatMap(([cardName], cardId) => cardName.toLowerCase().includes(name.toLowerCase()) ? [{ name: cardName, cardId }] : []);
+  const query = name.toLowerCase();
+  const practiceResults = workspace ? [] : [
+    ...[...practiceBasics].map(([cardId, card]) => ({ name: card.name, cardId })),
+    ...cards.map(([name], cardId) => ({ name, cardId })),
+  ].filter((card) => exact ? card.name === name : card.name.toLowerCase().includes(query));
+  const localBasics = practiceResults.filter(({ cardId }) => practiceBasics.has(cardId));
+  let results = practiceResults;
+  if (liveAvailable && !localBasics.some(({ name }) => name.toLowerCase() === query)) {
+    try {
+      const printings = await searchCards(name);
+      results = localBasics.concat(printings.filter((card) => !exact || card.name === name)
+        .map((card) => ({ ...card, cardId: remotePrinting(card) })));
+    } catch (error) {
+      if (!practiceResults.length) throw error;
+    }
+  }
   if (request !== searchRequest || !searchDialog.open || workspace !== activeLive) return;
   for (const printing of results.slice(0, 12)) {
     const row = document.createElement("div");
@@ -866,7 +886,10 @@ async function showSearchResults(name, exact = false) {
       searchDialog.close();
     };
     row.append(inspect);
-    if (workspace?.allowedBasics.has(printing.name)) {
+    const canAddBasic = () => workspace
+      ? workspace.allowedBasics.has(printing.name)
+      : practiceBasics.has(printing.cardId);
+    if (canAddBasic()) {
       const quantity = document.createElement("input");
       quantity.type = "number";
       quantity.min = "1";
@@ -876,15 +899,16 @@ async function showSearchResults(name, exact = false) {
       const add = document.createElement("button");
       add.textContent = "Add to Main deck";
       add.onclick = () => {
-        if (workspace !== activeLive || !workspace.allowedBasics.has(printing.name) || !quantity.checkValidity()) return;
-        workspace.addBasic(printing, Number(quantity.value), "main");
+        if (workspace !== activeLive || !canAddBasic() || !quantity.checkValidity()) return;
+        if (workspace) workspace.addBasic(printing, Number(quantity.value), "main");
+        else addPracticeBasics(printing.cardId, Number(quantity.value));
         searchStatus("Added " + quantity.value + " × " + printing.name + ".");
       };
       row.append(quantity, add);
     }
     list.append(row);
   }
-  searchStatus(results.length ? "Choose a printing to preview it." : "No matching printings.");
+  searchStatus(results.length ? "Choose a card to preview it." : "No matching cards.");
 }
 
 $("search-open").addEventListener("click", () => {
@@ -892,11 +916,11 @@ $("search-open").addEventListener("click", () => {
   shortcuts.replaceChildren();
   $("live-results").replaceChildren();
   searchStatus("");
-  const allowed = activeLive?.allowedBasics;
-  $("basic-status").textContent = allowed?.size
+  const allowed = activeLive ? [...activeLive.allowedBasics] : [...practiceBasics.values()].map(({ name }) => name);
+  $("basic-status").textContent = allowed.length
     ? "Choose an allowed basic land to add copies."
     : "Basic lands can be added when the active event allows them.";
-  for (const name of allowed || []) {
+  for (const name of allowed) {
     const button = document.createElement("button");
     button.textContent = name;
     button.onclick = () => {
@@ -909,14 +933,26 @@ $("search-open").addEventListener("click", () => {
   $("live-search").elements.card.focus();
 });
 liveForm("live-search", ({ card }) => showSearchResults(card.trim()), searchStatus);
+function signInTiming() {
+  if (new URL(location.href || location.origin).searchParams.get("signinTiming") !== "1") return undefined;
+  // Mark only fixed stage names. Never attach request URLs, form fields, or responses.
+  return (stage) => performance.mark(`workbench-signin:${stage}`);
+}
+
 liveForm("live-login", async ({ username, password }) => {
+  const mark = signInTiming();
+  mark?.("submit");
   try {
-    account = await cubeRequest("auth/login/", { username, password });
+    liveStatus("Signing in…");
+    account = await cubeRequest("auth/login/", { username, password }, () => mark?.("login-headers"));
     liveStatus(`Signed in as ${account.user.username}.`);
+    mark?.("signed-in");
     $("live-login").hidden = true;
     $("live-pools-refresh").hidden = false;
-    connectLobbies();
-    void loadPoolEvents(true);
+    mark?.("lobbies-start");
+    connectLobbies(mark);
+    mark?.("pools-start");
+    void loadPoolEvents(true, mark);
     if (activeLive?.state.finished && activeLive.poolId) {
       attachPool(activeLive, await cubeRequest(`limited/pools/${activeLive.poolId}/`));
       renderSubmission();
@@ -943,3 +979,4 @@ async function openLimitedPool(id) {
 }
 liveForm("live-pool", ({ pool }) => openLimitedPool(pool));
 liveForm("live-seat", ({ seat }) => openDraft(seat.trim()));
+

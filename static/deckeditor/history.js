@@ -4,7 +4,7 @@ let historyIndex = null;
 let historyDraft = null;
 
 function draftHistory() {
-  return activeLive ? draft.history : draft.picks.map((pick, index) => ({
+  return activeLive ? draft.history : practiceDraftPicks().map((pick, index) => ({
     cardId: pick.cardId, round: Math.floor(index / picksPerPack) + 1, number: index + 1,
     boosterId: `practice-${Math.floor(index / picksPerPack)}`, pack: pick.pack,
   }));
@@ -104,3 +104,4 @@ function setupHistory() {
     renderPack();
   });
 }
+

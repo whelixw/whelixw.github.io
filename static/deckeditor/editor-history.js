@@ -57,6 +57,8 @@ function replayEditorAction(direction) {
   for (const id of command.changed) {
     if (!present.has(id) && target.has(id)) draft.picks.push(copyEditorState(target.get(id)));
   }
+  // A pick confirmed after this edit can share a cell with the restored cards.
+  for (const zone of zoneKeys) deckPiles(zone, draft, true);
   chosenCards.clear();
   for (const id of direction === "undo" ? command.selectionBefore : command.selectionAfter) {
     if (findEditorPick(id)) chosenCards.add(id);
@@ -70,3 +72,4 @@ function replayEditorAction(direction) {
   updateEditorHistoryControls();
   notice(`${direction === "undo" ? "Undid" : "Redid"} ${command.label}.`);
 }
+

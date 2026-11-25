@@ -4,6 +4,12 @@ const chosenCards = new Set();
 const deckRows = 3;
 const deckColumns = { pool: 10, main: 10, side: 3 };
 const zoneZoom = { booster: 100, pool: 100, main: 100, side: 100 };
+const placementMode = new URL(location.href || location.origin).searchParams.get("placement") === "last" ? "last" : "first";
+const lastPlacement = new WeakMap();
+
+function destinationCell(zone, cell, state = draft) {
+  return cell ?? (placementMode === "last" ? lastPlacement.get(state)?.[zone] : undefined) ?? 0;
+}
 
 function setZoneZoom(zone, value) {
   zoneZoom[zone] = value;
@@ -16,25 +22,21 @@ function setZoneZoom(zone, value) {
 function setupZoneZoom() {
   const table = $("table");
   const storageKey = "deckeditor-zone-zoom";
-  const apply = (zone, value) => {
-    setZoneZoom(zone, value);
-  };
   try {
     const saved = JSON.parse(localStorage.getItem(storageKey));
     for (const zone of Object.keys(zoneZoom)) {
       const value = saved?.[zone];
-      if (Number.isInteger(value) && value >= 10 && value <= 200) apply(zone, value);
+      if (Number.isInteger(value) && value >= 10 && value <= 200) setZoneZoom(zone, value);
     }
   } catch {}
   table.querySelector('[data-zoom="booster"]').value = zoneZoom.booster;
   table.addEventListener("input", (event) => {
     const zone = event.target.dataset.zoom;
     if (!Object.hasOwn(zoneZoom, zone)) return;
-    apply(zone, event.target.valueAsNumber);
-    try { localStorage.setItem(storageKey, JSON.stringify(zoneZoom)); } catch {}
+    setZoneZoom(zone, event.target.valueAsNumber);
   });
   table.addEventListener("wheel", (event) => {
-    if (!event.deltaY || event.target.closest("select, .trap-components")) return;
+    if (!event.deltaY || event.shiftKey || event.target.closest("select, .trap-components")) return;
     const canvas = event.target.closest(".zone-cards, #pack");
     if (!canvas) return;
     const zone = canvas.id === "pack" ? "booster" : canvas.closest("[data-zone]").dataset.zone;
@@ -46,12 +48,12 @@ function setupZoneZoom() {
     const x = event.clientX - rect.left, y = event.clientY - rect.top;
     const left = (canvas.scrollLeft + x) * value / oldZoom - x;
     const top = (canvas.scrollTop + y) * value / oldZoom - y;
-    apply(zone, value); canvas.scrollTo({ left, top });
+    setZoneZoom(zone, value); canvas.scrollTo({ left, top });
   }, { passive: false });
 }
 
-function orderedZone(zone) {
-  return editorPicks().filter((pick) => pick.zone === zone).sort((left, right) =>
+function orderedZone(zone, state = draft) {
+  return editorPicks(state).filter((pick) => pick.zone === zone).sort((left, right) =>
     (left.order ?? Number.MAX_SAFE_INTEGER) - (right.order ?? Number.MAX_SAFE_INTEGER));
 }
 
@@ -76,14 +78,14 @@ function showSortMenu(open) {
 }
 
 function draggedCards(id) {
-  const source = findEditorPick(id);
   if (!chosenCards.has(id)) return [id];
-  return orderedZone(source.zone).filter((pick) => chosenCards.has(String(pick.id))).map((pick) => String(pick.id));
+  return zoneKeys.flatMap((zone) => orderedZone(zone))
+    .filter((pick) => chosenCards.has(String(pick.id))).map((pick) => String(pick.id));
 }
 
-function deckPiles(zone) {
+function deckPiles(zone, state = draft, mergeCollisions = false) {
   const groups = new Map();
-  for (const pick of orderedZone(zone)) {
+  for (const pick of orderedZone(zone, state)) {
     const key = pick.stack || `card-${pick.id}`;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(pick);
@@ -92,8 +94,18 @@ function deckPiles(zone) {
   const waiting = [];
   for (const pile of groups.values()) {
     const cell = pile[0].cell;
-    if (Number.isSafeInteger(cell) && cell >= 0 && !placed.has(cell)) placed.set(cell, pile);
-    else waiting.push(pile);
+    if (!Number.isSafeInteger(cell) || cell < 0) {
+      waiting.push(pile);
+    } else if (!placed.has(cell)) {
+      placed.set(cell, pile);
+    } else if (mergeCollisions) {
+      const existing = placed.get(cell);
+      const stack = existing[0].stack || pile[0].stack || crypto.randomUUID();
+      existing.push(...pile);
+      for (const pick of existing) pick.stack = stack;
+    } else {
+      waiting.push(pile);
+    }
   }
   let cell = 0;
   for (const pile of waiting) {
@@ -114,44 +126,35 @@ function deckCoordinates(zone, cell) {
     : { row: overflow % deckRows + 1, col: cols + Math.floor(overflow / deckRows) + 1 };
 }
 
-function arrangeDrop(ids, zone, targetId, cell) {
-  if (!editorActionDepth) return editorAction("arrange cards", () => arrangeDrop(ids, zone, targetId, cell));
-  if (ids.includes(targetId)) return;
-  const picks = ids.map(findEditorPick).filter(Boolean);
-  const target = findEditorPick(targetId);
-  const stack = target || (cell !== undefined && picks.length > 1)
-    ? target?.stack || crypto.randomUUID()
-    : undefined;
-  let moved = false;
-  let arranged = false;
-  const occupied = new Set(orderedZone(zone).filter((pick) => !ids.includes(String(pick.id))).map((pick) => pick.cell));
-  if (!target && cell !== undefined) {
-    while (occupied.has(cell)) cell += 1;
+function placeCards(picks, zone, cell, state = draft) {
+  if (!picks.length) return;
+  const pile = deckPiles(zone, state).get(cell) || [];
+  const remaining = pile.filter((pick) => !picks.includes(pick));
+  const stack = remaining[0]?.stack || (remaining.length + picks.length > 1
+    ? pile[0]?.stack || crypto.randomUUID() : undefined);
+  let order = orderedZone(zone, state).reduce((maximum, pick) => Math.max(maximum, pick.order ?? -1), -1);
+  for (const pick of remaining) {
+    pick.stack = stack;
+    if (pick.order === undefined) pick.order = ++order;
   }
   for (const pick of picks) {
-    moved = changeZone(pick, zone) || moved;
-    if (!target && cell !== undefined) {
-      arranged = arranged || pick.cell !== cell;
-      pick.cell = cell;
-    } else if (target) {
-      pick.cell = target.cell;
-    }
-    if (pick.stack || stack) arranged = true;
-    pick.stack = stack || undefined;
+    if (pick.zone !== zone) changeZone(pick, zone, state);
+    Object.assign(pick, { zone, cell, stack, order: ++order });
   }
-  if (!moved && !arranged) return;
-  if (target) {
-    target.stack = stack;
-    const order = orderedZone(zone).filter((pick) => !ids.includes(String(pick.id)));
-    const end = order.findLastIndex((pick) => pick.stack === stack);
-    order.splice(end + 1, 0, ...picks);
-    order.forEach((pick, index) => { pick.order = index; });
-  }
+  if (!lastPlacement.has(state)) lastPlacement.set(state, {});
+  lastPlacement.get(state)[zone] = cell;
+}
+
+function arrangeDrop(ids, zone, cell = destinationCell(zone)) {
+  if (!editorActionDepth) return editorAction("arrange cards", () => arrangeDrop(ids, zone, cell));
+  const picks = ids.map(findEditorPick).filter(Boolean);
+  if (!picks.length) return;
+  placeCards(picks, zone, cell);
+  draft.submitted = false;
   save();
   renderEditor();
   renderSubmission();
-  notice(stack ? `Stacked ${picks.length === 1 ? "card" : `${picks.length} cards`}.`
-    : moved ? `Moved cards to ${labels[zone]}.` : "Placed cards in the grid.");
+  notice(`Placed ${picks.length === 1 ? "1 card" : `${picks.length} cards`} in ${labels[zone]}.`);
 }
 
 function setupSelectionBox(canvasRoot) {
@@ -217,6 +220,12 @@ function setupSelectionBox(canvasRoot) {
   }
 }
 
+function showCardMenu(menu, x, y) {
+  menu.hidden = false;
+  menu.style.left = `${Math.max(4, Math.min(x + 5, innerWidth - menu.offsetWidth - 4))}px`;
+  menu.style.top = `${Math.max(4, Math.min(y + 5, innerHeight - menu.offsetHeight - 4))}px`;
+}
+
 function setupCardActions() {
   const menu = $("card-actions");
   let anchor;
@@ -250,7 +259,12 @@ function setupCardActions() {
     const unstack = $("card-action-unstack");
     unstack.hidden = !selection.some(({ stack }) => stack);
     unstack.onclick = () => { close(); editorAction("unstack selection", () => {
-      for (const zone of zoneKeys) arrangeDrop(selection.filter((pick) => pick.zone === zone).map(({ id }) => String(id)), zone);
+      for (const pick of selection.filter(({ stack }) => stack)) {
+        delete pick.stack;
+        delete pick.cell;
+      }
+      for (const zone of new Set(selection.map(({ zone }) => zone))) deckPiles(zone);
+      save(); renderEditor();
     }); };
     const expandable = selection.filter(({ cardId }) => traps.has(cardId) && !isTrapChoice(cardId));
     const coveredChoice = pick && isTrapChoice(pick.cardId) && card.nextElementSibling;
@@ -260,7 +274,7 @@ function setupCardActions() {
       if (coveredChoice) {
         const cards = orderedZone(pick.zone).filter((entry) => entry !== pick).concat(pick);
         cards.forEach((entry, index) => { entry.order = index; }); save(); renderEditor();
-      } else for (const entry of expandable) resolveTrap(entry, entry.choices || {});
+      } else for (const entry of expandable) resolveTrap(entry, {});
     }); };
     const options = $("card-action-options"); options.replaceChildren();
     if (origin?.choicePath) {
@@ -287,7 +301,7 @@ function setupCardActions() {
     collapse.onclick = () => { close(); editorAction("collapse traps", () => {
       for (const plan of plans) collapseTrap(plan.trap, plan.member);
     }); };
-    const added = selection.filter(({ addedPrinting }) => addedPrinting);
+    const added = selection.filter(({ addedPrinting, addedBasic }) => addedPrinting || addedBasic);
     const remove = $("card-action-remove-basic"); remove.hidden = !added.length;
     remove.textContent = `Remove ${added.length} selected added ${added.length === 1 ? "basic" : "basics"}`;
     remove.onclick = () => { close(); editorAction("remove added basics", () => {
@@ -304,11 +318,9 @@ function setupCardActions() {
       button.onclick = () => { close(); applyLayout(button.dataset.layout); };
     }
     $("card-action-fit").onclick = () => { close(); for (const zone of new Set(selection.map(({ zone }) => zone))) fitEditorView(zone); };
-    menu.hidden = false;
     anchor.querySelector(".card-menu-toggle")?.setAttribute("aria-expanded", "true");
-    menu.style.left = `${Math.max(4, Math.min(x + 5, innerWidth - menu.offsetWidth - 4))}px`;
-    menu.style.top = `${Math.max(4, Math.min(y + 5, innerHeight - menu.offsetHeight - 4))}px`;
-    if (keyboard) moves.querySelector("button")?.focus();
+    showCardMenu(menu, x, y);
+    if (keyboard) menu.querySelector("button:not([hidden])")?.focus();
   };
 }
 
@@ -361,8 +373,22 @@ function setupArrangement() {
   setupLayoutControls();
   setupPaneDividers();
   setupZoneZoom();
+  const names = $("show-card-names");
+  try { names.checked = localStorage.getItem("deckeditor-show-card-names") === "true"; } catch {}
+  const showNames = () => document.body.classList.toggle("show-card-names", names.checked);
+  showNames();
+  names.addEventListener("change", () => {
+    showNames();
+    try { localStorage.setItem("deckeditor-show-card-names", String(names.checked)); } catch {}
+    renderEditor();
+    if (traps.has(previewed)) showTrapPreview(previewed);
+  });
   setupSelectionBox($("zones"));
   const openActions = setupCardActions();
+  function setTrapChoosing(row, enabled) {
+    row.classList.toggle("choosing-trap", enabled);
+    row.querySelector(".choose-trap")?.setAttribute("aria-pressed", String(enabled));
+  }
   function selectCard(event, toggle, optionArtwork = false) {
     const row = event.target.closest("[data-pick]");
     if (!row || (!optionArtwork && event.target.closest("select,button"))) return;
@@ -379,52 +405,59 @@ function setupArrangement() {
     if (row && event.target.closest(".card-menu-toggle")) {
       event.stopPropagation(); openActions(row, event.clientX, event.clientY, event.detail === 0); return;
     }
-    if (row && event.target.closest(".choose-trap")) {
-      event.preventDefault(); event.stopPropagation();
-      if (clicked && isTrapChoice(clicked.cardId)) {
-        const enabled = row.dataset.choosingTrap !== "true";
-        setTrapChoosing(row, enabled);
-        if (enabled && event.detail === 0) row.querySelector("[data-trap-option]")?.focus();
+    if (clicked && isTrapChoice(clicked.cardId) && event.target.closest(".choose-trap")) {
+      event.stopPropagation();
+      const enabled = !row.classList.contains("choosing-trap");
+      setTrapChoosing(row, enabled);
+      if (enabled && event.detail === 0) row.querySelector("[data-trap-option]")?.focus();
+      return;
+    }
+    const option = event.target.closest("[data-trap-option]");
+    if (option && clicked && isTrapChoice(clicked.cardId)) {
+      event.stopPropagation();
+      if (event.ctrlKey || event.metaKey) {
+        selectCard(event, true, true);
+        return;
       }
+      if (!names.checked && !event.shiftKey && !row.classList.contains("choosing-trap")) return;
+      const origin = trapOrigin(clicked);
+      if (origin?.choicePath) chooseTrapOption(origin.trap, origin.choicePath, Number(option.dataset.trapOption));
       return;
     }
     if (row && event.target.closest(".inspect-trap")) {
       event.preventDefault(); event.stopPropagation();
-      if (clicked && traps.has(clicked.cardId) && !isTrapChoice(clicked.cardId)) resolveTrap(clicked, clicked.choices || {});
+      if (clicked && traps.has(clicked.cardId) && !isTrapChoice(clicked.cardId)) resolveTrap(clicked, {});
       return;
     }
     if (event.shiftKey && clicked && traps.has(clicked.cardId) && !isTrapChoice(clicked.cardId)
       && !event.target.closest("select, .trap-component-toggle")) {
-      event.preventDefault(); event.stopPropagation(); resolveTrap(clicked, clicked.choices || {}); return;
-    }
-    const option = event.target.closest("[data-trap-option]");
-    if (option) {
-      event.preventDefault();
-      event.stopPropagation();
-      if ((!event.shiftKey && row?.dataset.choosingTrap !== "true") || event.ctrlKey || event.metaKey) {
-        const selectedRow = selectCard(event, event.ctrlKey || event.metaKey, true);
-        if (selectedRow && !event.ctrlKey && !event.metaKey) openActions(selectedRow, event.clientX, event.clientY);
-        return;
-      }
-      const pick = findEditorPick(option.closest("[data-pick]").dataset.pick);
-      const origin = trapOrigin(pick);
-      if (origin?.choicePath) chooseTrapOption(origin.trap, origin.choicePath, Number(option.dataset.trapOption));
-      return;
+      event.preventDefault(); event.stopPropagation(); resolveTrap(clicked, {}); return;
     }
     const toggle = event.ctrlKey || event.metaKey || event.shiftKey;
     const selectedRow = selectCard(event, toggle);
-    if (selectedRow && !toggle) openActions(selectedRow, event.clientX, event.clientY);
+    if (selectedRow && !toggle && names.checked && clicked && traps.has(clicked.cardId) && !isTrapChoice(clicked.cardId)) {
+      openActions(selectedRow, event.clientX, event.clientY);
+    }
   });
-  // Moving between a choice's children keeps the mode active; leaving the
-  // whole card ends it. Keyboard users can cancel with Escape or focus outside.
-  for (const type of ["pointerout", "focusout"]) $("zones").addEventListener(type, (event) => {
+  $("zones").addEventListener("contextmenu", (event) => {
     const row = event.target.closest("[data-pick]");
-    if (row?.dataset.choosingTrap === "true" && !row.contains(event.relatedTarget)) setTrapChoosing(row, false);
+    if (!row) return;
+    event.preventDefault();
+    const keyboard = !event.clientX && !event.clientY;
+    const bounds = keyboard && row.getBoundingClientRect();
+    openActions(row, bounds ? bounds.left : event.clientX, bounds ? bounds.bottom : event.clientY, keyboard);
   });
+  for (const type of ["pointerout", "focusout"]) {
+    $("zones").addEventListener(type, (event) => {
+      const row = event.target.closest(".choosing-trap");
+      if (row && !row.contains(event.relatedTarget)) setTrapChoosing(row, false);
+    });
+  }
   $("zones").addEventListener("keydown", (event) => {
-    const choosing = event.target.closest('[data-choosing-trap="true"]');
+    const choosing = event.target.closest(".choosing-trap");
     if (event.key === "Escape" && choosing) {
-      event.preventDefault(); event.stopPropagation();
+      event.preventDefault();
+      event.stopPropagation();
       setTrapChoosing(choosing, false);
       choosing.querySelector(".choose-trap")?.focus();
       return;
@@ -479,3 +512,4 @@ function manaValue(mana) {
   return [...(mana || "").matchAll(/\{([^}]+)\}/g)].reduce((total, [, symbol]) =>
     total + (/^[XYZ]$/.test(symbol) ? 0 : Number.parseInt(symbol, 10) || 1), 0);
 }
+

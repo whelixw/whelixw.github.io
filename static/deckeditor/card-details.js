@@ -236,3 +236,4 @@ const cardDetails = [
     ]
   }
 ];
+

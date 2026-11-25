@@ -6,16 +6,16 @@
   <meta name="description" content="Draft and build your Magic deck in one workspace.">
   <meta name="cubeapp-bridge" content="https://whelixw-phdk-bridge.onrender.com">
   <title>Deckeditor — Draft Workbench</title>
-  <link rel="stylesheet" href="style.css?v=20261120-artwork-choose">
-  <script src="card-details.js?v=20261120-artwork-choose" defer></script>
-  <script src="traps.js?v=20261120-artwork-choose" defer></script>
-  <script src="arrange.js?v=20261120-artwork-choose" defer></script>
-  <script src="editor-history.js?v=20261120-artwork-choose" defer></script>
-  <script src="layouts.js?v=20261120-artwork-choose" defer></script>
-  <script src="history.js?v=20261120-artwork-choose" defer></script>
-  <script src="app.js?v=20261120-artwork-choose" defer></script>
-  <script src="live.js?v=20261120-artwork-choose" defer></script>
-  <script src="export.js?v=20261120-artwork-choose" defer></script>
+  <link rel="stylesheet" href="style.css?v=20261125-trap-artwork">
+  <script src="card-details.js?v=20261125-trap-artwork" defer></script>
+  <script src="traps.js?v=20261125-trap-artwork" defer></script>
+  <script src="arrange.js?v=20261125-trap-artwork" defer></script>
+  <script src="editor-history.js?v=20261125-trap-artwork" defer></script>
+  <script src="layouts.js?v=20261125-trap-artwork" defer></script>
+  <script src="history.js?v=20261125-trap-artwork" defer></script>
+  <script src="app.js?v=20261125-trap-artwork" defer></script>
+  <script src="live.js?v=20261125-trap-artwork" defer></script>
+  <script src="export.js?v=20261125-trap-artwork" defer></script>
 </head>
 <body>
   <header class="top">
@@ -34,10 +34,12 @@
           <button data-sort="mana">Mana value</button>
           <button data-layout="curve">Layout: Mana curve</button>
           <button data-layout="colors">Layout: Color overview</button>
+          <button data-layout="color-type">Layout: Color by type</button>
           <button data-layout="review">Layout: Deck review</button>
           <button id="layout-presets-open">Manage layout presets…</button>
         </div>
       </div>
+      <label><input type="checkbox" id="show-card-names"> Show trap names</label>
       <button id="live-open" hidden>Cubeapp</button>
       <button id="search-open">Card search</button>
     </div>
@@ -57,7 +59,6 @@
         <header class="pane-bar">
           <h2 id="booster-title">Booster</h2><span id="pack-label"></span>
           <div class="actions">
-            <span id="booster-selection-count" aria-live="polite"></span>
             <label><input type="checkbox" id="show-pack-ghosts"> Show ghosts</label>
             <label class="zone-zoom">Zoom <input type="range" min="10" max="200" step="1" value="100" data-zoom="booster" aria-label="Booster zoom"></label>
             <span id="timer" aria-label="Time left"></span>
@@ -81,10 +82,15 @@
   <footer class="status-bar">
     <span id="notice" role="status"></span>
     <span id="pick-hint">Double-click to pick, or drag a card into a deck zone.</span>
-    <span id="arrange-hint">Drag from empty space to select. Click a card for actions.</span>
+    <span id="arrange-hint">Right-click a card for actions. Drag from empty space to select.</span>
     <span id="total"></span>
   </footer>
   <div id="selection-box" hidden aria-hidden="true"></div>
+  <div id="booster-actions" class="sort-options" role="group" aria-label="Pick destination" hidden>
+    <button type="button" data-pick-zone="main">Pick to Main deck</button>
+    <button type="button" data-pick-zone="pool">Pick to Pool</button>
+    <button type="button" data-pick-zone="side">Pick to Sideboard</button>
+  </div>
   <div id="card-actions" class="sort-options" role="group" aria-labelledby="card-action-scope" hidden>
     <strong id="card-action-scope"></strong>
     <div id="card-action-move"></div>
@@ -98,6 +104,7 @@
     <button type="button" data-sort="mana">Sort by mana value</button>
     <button type="button" data-layout="curve">Layout: Mana curve</button>
     <button type="button" data-layout="colors">Layout: Color overview</button>
+    <button type="button" data-layout="color-type">Layout: Color by type</button>
     <button type="button" data-layout="review">Layout: Deck review</button>
     <button type="button" id="card-action-fit">Fit selection</button>
   </div>
@@ -235,3 +242,4 @@
   </dialog>
 </body>
 </html>
+

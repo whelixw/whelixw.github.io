@@ -4,6 +4,7 @@ let activeEditorZone = "main";
 const builtinLayouts = [
   { id: "curve", name: "Mana curve", columns: "mana", rows: "kind", order: "name" },
   { id: "colors", name: "Color overview", columns: "color", rows: "none", order: "mana" },
+  { id: "color-type", name: "Color by type", columns: "color", rows: "kind", order: "mana" },
   { id: "review", name: "Deck review", columns: "none", rows: "land", order: "name" },
 ];
 let savedLayouts = [];
@@ -153,3 +154,4 @@ function setupLayoutControls() {
     }
   });
 }
+
