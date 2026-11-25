@@ -64,13 +64,12 @@ function isTrapChoice(id) {
   return traps.get(id)?.option === true;
 }
 
-function trapComponentSelector(id) {
-  const { tree } = traps.get(id);
-  if (!trapComponents(tree).length) return "";
+function trapComponentSelector(id, layout = trapArtworkLayout(traps.get(id).imageTree || traps.get(id).tree)) {
+  if (!trapComponents(layout.node).length) return "";
 
   return `<button type="button" class="trap-component-toggle" hidden aria-expanded="false" aria-label="Show trap components"></button>
     <span class="trap-components trap-art-strip" role="group" aria-label="Trap components">
-      ${trapArtTree(tree, true)}
+      ${trapArtTree(layout, true)}
     </span>`;
 }
 
@@ -85,10 +84,21 @@ function trapTile(member) {
   return `<svg class="trap-artwork" viewBox="92 120 560 435" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><image href="${escapeHtml(face.image)}" width="745" height="1040" preserveAspectRatio="none"></image></svg>`;
 }
 
-function trapArtTree(node, interactive = false, count = 1, parentType = null, chooseOptions = false) {
+function trapArtworkLayout(node) {
+  if (!Array.isArray(node)) return { node, name: cardInfo(node).name };
+  // Cubeapp sorts each group by card name or by the nested group's composed name.
+  const rows = node[1].map(([child, count]) => ({ ...trapArtworkLayout(child), count }));
+  rows.sort((left, right) => (left.name > right.name) - (left.name < right.name));
+  const name = rows.map(({ name, node, count }) =>
+    (count > 1 ? `${count}x` : "") + name + (Array.isArray(node) ? ` ${node[0]}` : "")).join("");
+  return { node, name, rows };
+}
+
+function trapArtTree(layout, interactive = false, count = 1, parentType = null, optionIndexes) {
+  const { node, rows } = layout;
   const copies = count > 1 ? `<span class="trap-count" aria-hidden="true">${count}×</span>` : "";
-  if (!Array.isArray(node)) {
-    const name = escapeHtml(cardInfo(node).name);
+  if (!rows) {
+    const name = escapeHtml(layout.name);
     const label = (count > 1 ? `${count}× ` : "") + name;
     const nameCount = count > 1 ? ` data-count="${count}x "` : "";
     const content = `${trapTile(node)}<span class="trap-name"${nameCount}>${name}</span>${copies}`;
@@ -96,15 +106,17 @@ function trapArtTree(node, interactive = false, count = 1, parentType = null, ch
       ? `<button type="button" class="trap-art-component" data-component="${node}" aria-label="Preview ${label}">${content}</button>`
       : `<span class="trap-art-component" data-component="${node}">${content}</span>`;
   }
-  const [type, children] = node;
+  const [type] = node;
   const any = type === "AnyNode";
   const label = (count > 1 ? `${count}× ` : "") + (parentType === null ? "" : parentType === "AllNode" ? "AND " : "OR ") + (any ? "choose one" : "take all");
   return `<span class="trap-art-group ${any ? "trap-art-any" : "trap-art-all"}" role="group" aria-label="${label}">${copies}
-    <span class="trap-group-children">${children.map(([child, quantity], index) => {
-      if (!chooseOptions) return trapArtTree(child, interactive, any ? 1 : quantity, type);
+    <span class="trap-group-children">${rows.map((row) => {
+      if (!optionIndexes) return trapArtTree(row, interactive, any ? 1 : row.count, type);
+      const child = row.node;
+      const index = optionIndexes.get(JSON.stringify(canonicalTrapTree(child)));
       const member = trapComponents(child)[0];
       const summary = escapeHtml(trapSummary(child));
-      return `<button type="button" class="trap-art-option" data-trap-option="${index}" ${member === undefined ? "" : `data-component="${member}"`} aria-label="Choose ${summary}">${trapArtTree(child, false, 1, type)}</button>`;
+      return `<button type="button" class="trap-art-option" data-trap-option="${index}" ${member === undefined ? "" : `data-component="${member}"`} aria-label="Choose ${summary}">${trapArtTree(row, false, 1, type)}</button>`;
     }).join("")}</span>
   </span>`;
 }
@@ -115,18 +127,11 @@ function originalTrapImage(id) {
     ? `${bridgeOrigin}/cubeapp/api/images/${imageId}/?type=trap&size_slug=medium` : "";
 }
 
-function originalTrapHitAreas(node, optionIndexes) {
-  if (!Array.isArray(node)) {
-    const name = cardInfo(node).name;
-    return { name, markup: `<span class="trap-art-component" data-component="${node}"></span>` };
-  }
-  const [, children] = node;
-  // Cubeapp sorts the image rows by card name or the nested group's name.
-  const rows = children.map(([child, count]) => ({ ...originalTrapHitAreas(child), child, count }));
-  rows.sort((left, right) => (left.name > right.name) - (left.name < right.name));
-  const name = rows.map(({ name, child, count }) =>
-    (count > 1 ? `${count}x` : "") + name + (Array.isArray(child) ? ` ${child[0]}` : "")).join("");
-  const markup = rows.map(({ markup, child, count }) => {
+function originalTrapHitAreas({ node, rows }, optionIndexes) {
+  if (!rows) return `<span class="trap-art-component" data-component="${node}"></span>`;
+  const markup = rows.map((row) => {
+    const { node: child, count } = row;
+    let markup = originalTrapHitAreas(row);
     if (optionIndexes) {
       const label = escapeHtml(trapSummary(child));
       const index = optionIndexes.get(JSON.stringify(canonicalTrapTree(child)));
@@ -134,20 +139,21 @@ function originalTrapHitAreas(node, optionIndexes) {
     }
     return Array.isArray(child) ? markup.repeat(count) : markup;
   }).join("");
-  return { name, markup: `<span class="original-trap-group">${markup}</span>` };
+  return `<span class="original-trap-group">${markup}</span>`;
 }
 
 function trapFace(id, interactive = true, deck = false) {
   const { tree, imageTree } = traps.get(id);
+  const layout = trapArtworkLayout(imageTree || tree);
   const chooseOptions = deck && isTrapChoice(id);
-  const overlay = interactive && !chooseOptions ? trapComponentSelector(id) : "";
+  const optionIndexes = chooseOptions ? new Map(tree[1].map(([child], index) => [JSON.stringify(canonicalTrapTree(child)), index])) : null;
+  const overlay = interactive && !chooseOptions ? trapComponentSelector(id, layout) : "";
   const source = deck ? originalTrapImage(id) : "";
   let original = "";
   if (source) {
-    const optionIndexes = chooseOptions ? new Map(tree[1].map(([child], index) => [JSON.stringify(child), index])) : null;
-    original = `<img class="original-trap-art" src="${escapeHtml(source)}" alt="" draggable="false" loading="lazy"><span class="original-trap-components">${originalTrapHitAreas(imageTree || tree, optionIndexes).markup}</span>`;
+    original = `<img class="original-trap-art" src="${escapeHtml(source)}" alt="" draggable="false" loading="lazy"><span class="original-trap-components">${originalTrapHitAreas(layout, optionIndexes)}</span>`;
   }
-  return `<span class="trap-face"><span class="trap-art-strip">${trapArtTree(tree, false, 1, null, chooseOptions)}</span>${original}</span>${overlay}`;
+  return `<span class="trap-face"><span class="trap-art-strip">${trapArtTree(layout, false, 1, null, optionIndexes)}</span>${original}</span>${overlay}`;
 }
 
 function showTrapPreview(id) {
