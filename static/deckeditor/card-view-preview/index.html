@@ -9,8 +9,8 @@
   <title>Deckeditor — Card View preview</title>
   <link rel="stylesheet" href="style.css?v=20261126-card-view-preview">
   <script src="card-details.js?v=20261126-card-view-preview" defer></script>
-  <script src="traps.js?v=20261126-trap-menu" defer></script>
-  <script src="arrange.js?v=20261126-trap-menu" defer></script>
+  <script src="traps.js?v=20261126-shift-choose" defer></script>
+  <script src="arrange.js?v=20261126-shift-choose" defer></script>
   <script src="editor-history.js?v=20261126-card-view-preview" defer></script>
   <script src="layouts.js?v=20261126-card-view-preview" defer></script>
   <script src="history.js?v=20261126-card-view-preview" defer></script>
@@ -18,7 +18,7 @@
   <script src="live.js?v=20261126-card-view-preview" defer></script>
   <script src="export.js?v=20261126-card-view-preview" defer></script>
 </head>
-<body class="deck-controls-hidden printed-titles">
+<body class="printed-titles">
   <header class="workbench-header">
     <div class="top" id="deck-actions">
       <h1>Deckeditor</h1>
@@ -76,7 +76,7 @@
       <div id="deck-divider" class="pane-divider" role="separator" aria-label="Resize Main deck and Sideboard" aria-orientation="vertical" tabindex="0"></div>
     </div>
     <div class="card-view-sidebar">
-      <button type="button" id="deck-actions-toggle" aria-pressed="false">
+      <button type="button" id="deck-actions-toggle" aria-pressed="true">
         <span class="deck-toggle-indicator" aria-hidden="true"></span>Deck actions
       </button>
       <aside class="pane inspector" aria-labelledby="preview-title">

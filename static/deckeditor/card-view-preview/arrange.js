@@ -382,10 +382,22 @@ function setupArrangement() {
   setupPaneDividers();
   setupZoneZoom();
   const controls = $("deck-actions-toggle");
-  controls.addEventListener("click", () => {
-    const visible = document.body.classList.contains("deck-controls-hidden");
+  const deckActionsKey = "deckeditor-card-view-preview-deck-actions";
+  const setDeckActions = (visible) => {
     document.body.classList.toggle("deck-controls-hidden", !visible);
     controls.setAttribute("aria-pressed", String(visible));
+  };
+  if (cardViewPreview) {
+    let visible = true;
+    try { visible = localStorage.getItem(deckActionsKey) !== "false"; } catch {}
+    setDeckActions(visible);
+  }
+  controls.addEventListener("click", () => {
+    const visible = document.body.classList.contains("deck-controls-hidden");
+    setDeckActions(visible);
+    if (cardViewPreview) {
+      try { localStorage.setItem(deckActionsKey, String(visible)); } catch {}
+    }
     if (!visible) showSortMenu(false);
   });
   const keepTop = $("keep-card-top");
@@ -444,15 +456,15 @@ function setupArrangement() {
       return;
     }
     const option = event.target.closest("[data-trap-option]");
-    if (option && clicked && isTrapChoice(clicked.cardId)) {
+    if (option && clicked && (standaloneChoice || isTrapChoice(clicked.cardId))) {
       event.stopPropagation();
       if (event.ctrlKey || event.metaKey) {
         selectCard(event, true, true);
         return;
       }
-      if (cardViewPreview && names.checked) return;
-      if (!names.checked && !event.shiftKey && !row.classList.contains("choosing-trap")) return;
-      const origin = trapOrigin(clicked);
+      if (!event.shiftKey && (standaloneChoice || (cardViewPreview && names.checked)
+        || (!names.checked && !row.classList.contains("choosing-trap")))) return;
+      const origin = standaloneChoice ? { trap: clicked, choicePath: "root" } : trapOrigin(clicked);
       if (origin?.choicePath) chooseTrapOption(origin.trap, origin.choicePath, Number(option.dataset.trapOption));
       return;
     }

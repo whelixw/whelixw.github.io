@@ -104,7 +104,7 @@ function trapArtworkLayout(node) {
   return { node, name, rows };
 }
 
-function trapArtTree(layout, interactive = false, count = 1, parentType = null, optionIndexes) {
+function trapArtTree(layout, interactive = false, count = 1, parentType = null, optionIndexes, optionTag = "button") {
   const { node, rows } = layout;
   const copies = count > 1 ? `<span class="trap-count" aria-hidden="true">${count}×</span>` : "";
   if (!rows) {
@@ -125,8 +125,8 @@ function trapArtTree(layout, interactive = false, count = 1, parentType = null, 
       const child = row.node;
       const index = optionIndexes.get(JSON.stringify(canonicalTrapTree(child)));
       const member = trapComponents(child)[0];
-      const summary = escapeHtml(trapSummary(child));
-      return `<button type="button" class="trap-art-option" data-trap-option="${index}" ${member === undefined ? "" : `data-component="${member}"`} aria-label="Choose ${summary}">${trapArtTree(row, false, 1, type)}</button>`;
+      const attributes = optionTag === "button" ? ` type="button" aria-label="Choose ${escapeHtml(trapSummary(child))}"` : "";
+      return `<${optionTag}${attributes} class="trap-art-option" data-trap-option="${index}" ${member === undefined ? "" : `data-component="${member}"`}>${trapArtTree(row, false, 1, type)}</${optionTag}>`;
     }).join("")}</span>
   </span>`;
 }
@@ -137,7 +137,7 @@ function originalTrapImage(id) {
     ? `${bridgeOrigin}/cubeapp/api/images/${imageId}/?type=trap&size_slug=medium` : "";
 }
 
-function originalTrapHitAreas({ node, name, rows }, optionIndexes, preview = false) {
+function originalTrapHitAreas({ node, name, rows }, optionIndexes, preview = false, optionTag = "button") {
   if (!rows) {
     if (preview) return `<button type="button" class="trap-art-component" data-component="${node}" aria-label="Preview ${escapeHtml(name)}"></button>`;
     return `<span class="trap-art-component" data-component="${node}"></span>`;
@@ -146,9 +146,9 @@ function originalTrapHitAreas({ node, name, rows }, optionIndexes, preview = fal
     const { node: child, count } = row;
     let markup = originalTrapHitAreas(row, null, preview);
     if (optionIndexes) {
-      const label = escapeHtml(trapSummary(child));
       const index = optionIndexes.get(JSON.stringify(canonicalTrapTree(child)));
-      markup = `<button type="button" class="trap-art-option" data-trap-option="${index}" aria-label="Choose ${label}">${markup}</button>`;
+      const attributes = optionTag === "button" ? ` type="button" aria-label="Choose ${escapeHtml(trapSummary(child))}"` : "";
+      markup = `<${optionTag}${attributes} class="trap-art-option" data-trap-option="${index}">${markup}</${optionTag}>`;
     }
     return Array.isArray(child) ? markup.repeat(count) : markup;
   }).join("");
@@ -158,16 +158,17 @@ function originalTrapHitAreas({ node, name, rows }, optionIndexes, preview = fal
 function trapFace(id, interactive = true, deck = false) {
   const { tree, imageTree } = traps.get(id);
   const layout = trapArtworkLayout(imageTree || tree);
-  const choice = deck && isTrapChoice(id);
-  const chooseOptions = choice && !(cardViewPreview && $("show-card-names").checked);
-  const optionIndexes = chooseOptions ? new Map(tree[1].map(([child], index) => [JSON.stringify(canonicalTrapTree(child)), index])) : null;
+  const standaloneChoice = isStandaloneTrapChoice(id);
+  const choice = deck && (isTrapChoice(id) || standaloneChoice);
+  const optionTag = standaloneChoice || (cardViewPreview && $("show-card-names").checked) ? "span" : "button";
+  const optionIndexes = choice ? new Map(tree[1].map(([child], index) => [JSON.stringify(canonicalTrapTree(child)), index])) : null;
   const overlay = interactive && !choice ? trapComponentSelector(id, layout) : "";
   const source = deck ? originalTrapImage(id) : "";
   let original = "";
   if (source) {
-    original = `<img class="original-trap-art" src="${escapeHtml(source)}" alt="" draggable="false" loading="lazy"><span class="original-trap-components">${originalTrapHitAreas(layout, optionIndexes)}</span>`;
+    original = `<img class="original-trap-art" src="${escapeHtml(source)}" alt="" draggable="false" loading="lazy"><span class="original-trap-components">${originalTrapHitAreas(layout, optionIndexes, false, optionTag)}</span>`;
   }
-  return `<span class="trap-face"><span class="trap-art-strip">${trapArtTree(layout, false, 1, null, optionIndexes)}</span>${original}</span>${overlay}`;
+  return `<span class="trap-face"><span class="trap-art-strip">${trapArtTree(layout, false, 1, null, optionIndexes, optionTag)}</span>${original}</span>${overlay}`;
 }
 
 function showTrapPreview(id, component) {
