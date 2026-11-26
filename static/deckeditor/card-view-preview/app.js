@@ -371,7 +371,9 @@ function renderEditor() {
     const count = orderedZone(zone).length;
     function renderCard({ id, cardId }) {
       const { name } = cardInfo(cardId);
-      const trapControl = !traps.has(cardId) ? "" : isTrapChoice(cardId)
+      const trapControl = !traps.has(cardId) ? "" : isStandaloneTrapChoice(cardId)
+        ? '<button type="button" class="inspect-trap choose-trap" aria-haspopup="true" aria-controls="card-actions">Choose</button>'
+        : isTrapChoice(cardId)
         ? '<button type="button" class="inspect-trap choose-trap" aria-pressed="false">Choose</button>'
         : '<button type="button" class="inspect-trap expand-trap" title="Expand this trap into deck cards">Expand</button>';
       return `<div class="card${chosenCards.has(String(id)) ? " chosen" : ""}" tabindex="0" aria-label="${escapeHtml(name)}" draggable="true" data-pick="${id}" data-preview="${cardId}">

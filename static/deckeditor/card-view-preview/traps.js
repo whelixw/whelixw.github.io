@@ -1,5 +1,7 @@
 "use strict";
 
+const cardViewPreview = Boolean(document.querySelector('meta[name="card-view-preview"]'));
+
 const demoTrap = "t-demo";
 const traps = new Map([
   [demoTrap, { tree: ["AllNode", [[0, 1], [["AnyNode", [[6, 1], [2, 1]]], 1]]] }],
@@ -62,6 +64,14 @@ function trapComponents(node) {
 
 function isTrapChoice(id) {
   return traps.get(id)?.option === true;
+}
+
+function isStandaloneTrapChoice(id) {
+  return cardViewPreview && !isTrapChoice(id) && traps.get(id)?.tree[0] === "AnyNode";
+}
+
+function canExpandTrap(id) {
+  return traps.has(id) && !isTrapChoice(id) && !isStandaloneTrapChoice(id);
 }
 
 function trapComponentSelector(id, layout = trapArtworkLayout(traps.get(id).imageTree || traps.get(id).tree)) {
@@ -148,9 +158,10 @@ function originalTrapHitAreas({ node, name, rows }, optionIndexes, preview = fal
 function trapFace(id, interactive = true, deck = false) {
   const { tree, imageTree } = traps.get(id);
   const layout = trapArtworkLayout(imageTree || tree);
-  const chooseOptions = deck && isTrapChoice(id);
+  const choice = deck && isTrapChoice(id);
+  const chooseOptions = choice && !(cardViewPreview && $("show-card-names").checked);
   const optionIndexes = chooseOptions ? new Map(tree[1].map(([child], index) => [JSON.stringify(canonicalTrapTree(child)), index])) : null;
-  const overlay = interactive && !chooseOptions ? trapComponentSelector(id, layout) : "";
+  const overlay = interactive && !choice ? trapComponentSelector(id, layout) : "";
   const source = deck ? originalTrapImage(id) : "";
   let original = "";
   if (source) {
@@ -269,7 +280,7 @@ function trapCollapsePath(pick, member) {
 function collapseTrap(pick, member) {
   if (!editorActionDepth) return editorAction("collapse trap", () => collapseTrap(pick, member));
   const path = trapCollapsePath(pick, member);
-  if (path) {
+  if (path && !(path === "root" && isStandaloneTrapChoice(pick.cardId))) {
     const choices = Object.fromEntries(Object.entries(pick.choices || {})
       .filter(([key]) => key !== path && !key.startsWith(`${path}.`)));
     resolveTrap(pick, choices, path);
@@ -283,7 +294,7 @@ function collapseTrap(pick, member) {
 }
 
 function chooseTrapOption(pick, path, index) {
-  if (!pick.members) return;
+  if (!pick.members && !(path === "root" && isStandaloneTrapChoice(pick.cardId))) return;
   if (!editorActionDepth) return editorAction("choose trap option", () => chooseTrapOption(pick, path, index));
   const node = trapChoiceNode(pick, path);
   if (node?.[0] !== "AnyNode" || !node[1][index]) return;
@@ -304,6 +315,7 @@ function trapChoiceNode(pick, choicePath) {
 }
 
 function resolveTrap(pick, choices, choicePath) {
+  if (isStandaloneTrapChoice(pick.cardId) && !traps.get(pick.cardId).tree[1][choices.root]) return;
   if (!editorActionDepth) return editorAction("expand trap", () => resolveTrap(pick, choices, choicePath));
   const previous = pick.members || [];
   const leaves = trapLeaves(pick, choices);
