@@ -15,7 +15,7 @@ body {
   margin: 0;
   height: 100dvh;
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
   background: var(--chrome);
   color: var(--text);
 }
@@ -45,7 +45,7 @@ button:not(:disabled):hover { border-color: var(--accent); }
 .top label { white-space: nowrap; }
 .top { border-bottom: 1px solid #20252a; }
 .top h1 { padding-right: 7px; }
-.tab-bar { border-bottom: 1px solid var(--edge); }
+.tab-bar { border-bottom: 1px solid var(--edge); flex-wrap: wrap; }
 .active-tab {
   background: #373e45;
   border: 1px solid var(--edge);
@@ -58,12 +58,13 @@ button:not(:disabled):hover { border-color: var(--accent); }
 
 .desktop {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) clamp(130px, 12vw, 240px);
+  grid-template-columns: minmax(0, 1fr) clamp(174px, 17vw, 310px);
   gap: 3px;
   padding: 2px;
   min-height: 0;
 }
 .table {
+  user-select: none;
   min-height: 0;
   min-width: 0;
   display: grid;
@@ -123,8 +124,8 @@ button:not(:disabled):hover { border-color: var(--accent); }
 .zone-main { --zone-zoom: var(--zoom-main, 1); }
 .zone-pool { --zone-zoom: var(--zoom-pool, 1); }
 .zone-side { --zone-zoom: var(--zoom-side, 1); }
-.zone-main, .zone-pool { --slot-width: calc(var(--zone-zoom) * clamp(52px, (100cqw - 35px) / 10, 112px)); }
-.zone-side { --slot-width: calc(var(--zone-zoom) * clamp(52px, (100cqw - 14px) / 3, 112px)); }
+.zone-main, .zone-pool { --slot-width: calc(var(--zone-zoom) * 1.1 * clamp(52px, (100cqw - 35px) / 10, 112px)); }
+.zone-side { --slot-width: calc(var(--zone-zoom) * 1.1 * clamp(52px, (100cqw - 14px) / 3, 112px)); }
 .zone-zoom { display: inline-flex; align-items: center; gap: 3px; }
 .zone-zoom input { width: 52px; margin: 0; }
 .zone-cards {
@@ -443,6 +444,124 @@ dialog header button { margin-left: auto; }
 #notice:empty { display: none; }
 #total { margin-left: auto; white-space: nowrap; }
 
+.card-view-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  min-height: 0;
+}
+.card-view-sidebar .inspector { flex: 1; }
+#notice {
+  position: fixed;
+  right: 6px;
+  bottom: 4px;
+  z-index: 3;
+  max-width: min(32rem, calc(100% - 12px));
+  padding: 3px 7px;
+  border: 1px solid var(--edge);
+  background: var(--chrome);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+#deck-actions-toggle {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 3px 7px;
+  border-color: #677480;
+  border-radius: 4px;
+  background: #3b434b;
+  box-shadow: 0 1px 2px #171b1e;
+  font-weight: 600;
+}
+#deck-actions-toggle:hover { border-color: var(--accent); background: #455565; }
+#deck-actions-toggle:active { box-shadow: inset 0 1px 2px #171b1e; }
+#deck-actions-toggle[aria-pressed="true"] { border-color: var(--accent); background: #31495c; }
+.deck-toggle-indicator {
+  display: flex;
+  align-items: center;
+  width: 19px;
+  height: 11px;
+  padding: 0 2px;
+  background: #22282d;
+  border-radius: 8px;
+}
+.deck-toggle-indicator::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+#deck-actions-toggle[aria-pressed="true"] .deck-toggle-indicator::before {
+  margin-left: auto;
+  background: var(--accent);
+}
+
+.deck-controls-hidden #deck-actions { display: none; }
+.deck-controls-hidden .zone { position: relative; }
+.deck-controls-hidden .zone > .pane-bar {
+  position: absolute;
+  z-index: 1;
+  top: 3px;
+  right: 16px;
+  min-height: 0;
+  border: 0;
+  border-radius: 2px;
+  pointer-events: none;
+}
+.deck-controls-hidden .zone > .pane-bar > :not(span) { display: none; }
+.deck-zone-count {
+  font-size: 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.deck-zone-count[data-selected]:not([data-selected="0"]) { color: var(--accent); }
+
+.zone {
+  /* Crop the upper border and retain the title and mana symbols on standard faces. */
+  --printed-title-offset: 24;
+  --printed-title-bottom: 72;
+  --printed-title-start: calc(var(--printed-title-offset) / 680 * 100%);
+  --printed-title-end: calc(var(--printed-title-bottom) / 680 * 100%);
+  --stack-step: calc(2px + (var(--slot-width) - 2px) / .717 *
+    (var(--printed-title-bottom) - var(--printed-title-offset)) / 680);
+}
+body.keep-card-top .zone { --printed-title-offset: 0; }
+.deck-slot .pile > .card:not(:last-child) {
+  clip-path: inset(0 0 max(0px, calc(100% - var(--stack-step))));
+  border-radius: 2px;
+}
+.deck-slot .pile > .card:not(:last-child) > img {
+  object-fit: fill;
+  clip-path: inset(var(--printed-title-start) 0 calc(100% - var(--printed-title-end)));
+  transform: translateY(calc(-1 * var(--printed-title-start)));
+}
+/* The hover menu would cover the mana symbols. Right-click and Enter still open it. */
+.deck-slot .pile > .card:not(:last-child) > .card-menu-toggle,
+.deck-slot .pile > .card:not(:last-child):has(> img) > .fallback,
+.deck-slot .pile > .card:not(:last-child) > .fallback small { display: none; }
+.deck-slot .pile > .card:not(:last-child) > .fallback {
+  padding: 0 3px;
+  font-size: clamp(4px, calc(var(--stack-step) - 2px), 11px);
+  line-height: calc(var(--stack-step) - 2px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+body.deck-dragging .zone.over { background: var(--canvas); outline: none; }
+body.deck-dragging .deck-slot { border-color: #8cc9f038; }
+body.deck-dragging .deck-slot.slot-target {
+  border-color: var(--accent);
+  background: #8cc9f03b;
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+body.deck-dragging .slot-target > .pile { outline: 2px solid var(--accent); outline-offset: -2px; }
+
 @media (max-width: 650px) {
   body { height: auto; min-height: 100dvh; }
   .desktop { grid-template-columns: minmax(0, 1fr) 110px; align-items: start; }
@@ -452,7 +571,7 @@ dialog header button { margin-left: auto; }
   .booster { grid-area: booster; width: 100%; }
   .zone-pool { grid-area: pool; width: 100%; }
   .pane-divider { display: none; }
-  .inspector { position: sticky; top: 4px; }
+  .card-view-sidebar { position: sticky; top: 4px; }
   .canvas { min-height: 95px; }
   .pack { justify-content: flex-start; }
   .status-bar { flex-wrap: wrap; }

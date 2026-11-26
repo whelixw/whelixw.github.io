@@ -366,7 +366,7 @@ function renderEditor() {
     const slots = Array.from({ length: base + extra * deckRows }, (_, cell) => {
       const { row, col } = deckCoordinates(zone, cell);
       const pile = piles.get(cell);
-      const stackRows = pile?.length > 1 ? `repeat(${pile.length - 1}, 22px) auto` : "auto";
+      const stackRows = pile?.length > 1 ? `repeat(${pile.length - 1}, var(--stack-step)) auto` : "auto";
       return `<div class="deck-slot" data-cell="${cell}" style="grid-row:${row};grid-column:${col}">${pile ? `<div class="pile" style="grid-template-rows:${stackRows}">${pile.map(renderCard).join("")}</div>` : ""}</div>`;
     }).join("");
     const rowDepths = Array(deckRows).fill(1);
@@ -374,9 +374,9 @@ function renderEditor() {
       const { row } = deckCoordinates(zone, cell);
       rowDepths[row - 1] = Math.max(rowDepths[row - 1], pile.length);
     }
-    const rowHeights = rowDepths.map((depth) => `calc(var(--slot-width) / .717 + ${(depth - 1) * 22}px)`).join(" ");
+    const rowHeights = rowDepths.map((depth) => `calc(var(--slot-width) / .717 + ${depth - 1} * var(--stack-step))`).join(" ");
     return `<section class="zone pane zone-${zone}" data-zone="${zone}" aria-label="${labels[zone]}">
-      <header class="pane-bar"><h2>${labels[zone]}</h2><button type="button" data-fit-zone="${zone}" title="Fit cards in view (F)">Fit</button><label class="zone-zoom">Zoom <input type="range" min="10" max="200" step="1" value="${zoneZoom[zone]}" data-zoom="${zone}" aria-label="${labels[zone]} zoom"></label><span>${count}</span></header>
+      <header class="pane-bar"><h2>${labels[zone]}</h2><button type="button" data-fit-zone="${zone}" title="Fit cards in view (F)">Fit</button><label class="zone-zoom">Zoom <input type="range" min="10" max="200" step="1" value="${zoneZoom[zone]}" data-zoom="${zone}" aria-label="${labels[zone]} zoom"></label><span class="deck-zone-count" data-card-total="${count}" title="Selected / total">0/${count}</span></header>
       <div class="canvas zone-cards" style="--columns:${deckColumns[zone] + extra};--rows:${deckRows};grid-template-rows:${rowHeights}">${slots}</div>
     </section>`;
   }).join("");
@@ -513,10 +513,35 @@ document.addEventListener("keydown", (event) => {
   (boosterActionCard?.querySelector(".booster-trap-pick") || boosterActionCard)?.focus();
 });
 
+function setCardDragImage(event, payload) {
+  const card = event.target.closest("[data-pick]");
+  const name = payload.type === "booster" ? cardInfo(payload.id).name : card.getAttribute("aria-label");
+  const count = payload.ids?.length ?? 1;
+  const label = count === 1 ? name : `${count} cards`;
+  const badge = document.createElement("canvas");
+  const brush = badge.getContext("2d");
+  if (!brush) return;
+  const font = "600 13px system-ui, sans-serif";
+  brush.font = font;
+  badge.width = Math.min(240, Math.ceil(brush.measureText(label).width) + 20);
+  badge.height = 26;
+  brush.fillStyle = "#292e33";
+  brush.fillRect(0, 0, badge.width, badge.height);
+  brush.strokeStyle = "#8cc9f0";
+  brush.strokeRect(.5, .5, badge.width - 1, badge.height - 1);
+  brush.fillStyle = "#e3e7eb";
+  brush.font = font;
+  brush.textBaseline = "middle";
+  brush.fillText(label, 10, badge.height / 2, badge.width - 20);
+  event.dataTransfer.setDragImage(badge, 8, 8);
+}
+
 function startDrag(event, payload) {
   drag = payload;
   event.dataTransfer.effectAllowed = "move";
   event.dataTransfer.setData("text/plain", String(payload.id));
+  setCardDragImage(event, payload);
+  document.body.classList.add("deck-dragging");
 }
 
 pack.addEventListener("dragstart", (event) => {
@@ -564,7 +589,9 @@ zones.addEventListener("drop", (event) => {
   else arrangeDrop(drag.ids, zone.dataset.zone, cell);
   drag = null;
 });
+document.addEventListener("drop", () => document.body.classList.remove("deck-dragging"));
 document.addEventListener("dragend", () => {
+  document.body.classList.remove("deck-dragging");
   drag = null;
   for (const zone of zones.querySelectorAll(".over")) zone.classList.remove("over");
   zones.querySelector(".slot-target")?.classList.remove("slot-target");

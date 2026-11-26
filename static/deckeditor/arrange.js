@@ -64,6 +64,13 @@ function selectedCards() {
 function updateArrangeControls() {
   const selected = selectedCards();
   $("selection-count").textContent = `${selected.length} selected`;
+  const selectedByZone = new Map();
+  for (const { zone } of selected) selectedByZone.set(zone, (selectedByZone.get(zone) ?? 0) + 1);
+  for (const counter of zones.querySelectorAll("[data-card-total]")) {
+    const count = selectedByZone.get(counter.closest("[data-zone]").dataset.zone) ?? 0;
+    counter.dataset.selected = count;
+    counter.textContent = `${count}/${counter.dataset.cardTotal}`;
+  }
   $("sort-cards").disabled = !editorPicks().length;
   $("sort-cards").textContent = selected.length ? `Sort ${selected.length} selected ▾` : `Sort ${labels[activeEditorZone]} ▾`;
   updateEditorHistoryControls();
@@ -373,6 +380,20 @@ function setupArrangement() {
   setupLayoutControls();
   setupPaneDividers();
   setupZoneZoom();
+  const controls = $("deck-actions-toggle");
+  controls.addEventListener("click", () => {
+    const visible = document.body.classList.contains("deck-controls-hidden");
+    document.body.classList.toggle("deck-controls-hidden", !visible);
+    controls.setAttribute("aria-pressed", String(visible));
+    if (!visible) showSortMenu(false);
+  });
+  const keepTop = $("keep-card-top");
+  try { keepTop.checked = localStorage.getItem("deckeditor-keep-card-top") === "true"; } catch {}
+  document.body.classList.toggle("keep-card-top", keepTop.checked);
+  keepTop.addEventListener("change", () => {
+    document.body.classList.toggle("keep-card-top", keepTop.checked);
+    try { localStorage.setItem("deckeditor-keep-card-top", String(keepTop.checked)); } catch {}
+  });
   const names = $("show-card-names");
   try { names.checked = localStorage.getItem("deckeditor-show-card-names") === "true"; } catch {}
   const showNames = () => document.body.classList.toggle("show-card-names", names.checked);

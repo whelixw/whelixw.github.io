@@ -81,11 +81,13 @@ function fitEditorView(zone = activeEditorZone) {
     return { left: Math.min(...rects.map((r) => r.left)), top: Math.min(...rects.map((r) => r.top)),
       right: Math.max(...rects.map((r) => r.right)), bottom: Math.max(...rects.map((r) => r.bottom)) };
   };
-  for (let pass = 0; pass < 3; pass++) {
+  for (let pass = 0; pass < 12; pass++) {
     const box = bounds();
     const ratio = Math.min((canvas.clientWidth - 16) / (box.right - box.left), (canvas.clientHeight - 16) / (box.bottom - box.top));
     if (!Number.isFinite(ratio) || ratio <= 0) return;
-    setZoneZoom(zone, Math.max(10, Math.min(200, Math.floor(zoneZoom[zone] * ratio))));
+    const next = Math.max(10, Math.min(200, Math.floor(zoneZoom[zone] * ratio)));
+    if (next === zoneZoom[zone]) break;
+    setZoneZoom(zone, next);
   }
   const box = bounds(), viewport = canvas.getBoundingClientRect();
   canvas.scrollTo({ left: canvas.scrollLeft + box.left - viewport.left - 8,

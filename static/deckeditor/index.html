@@ -6,53 +6,56 @@
   <meta name="description" content="Draft and build your Magic deck in one workspace.">
   <meta name="cubeapp-bridge" content="https://whelixw-phdk-bridge.onrender.com">
   <title>Deckeditor — Draft Workbench</title>
-  <link rel="stylesheet" href="style.css?v=20261125-trap-artwork">
+  <link rel="stylesheet" href="style.css?v=20261126-printed-titles">
   <script src="card-details.js?v=20261125-trap-artwork" defer></script>
   <script src="traps.js?v=20261125-trap-artwork" defer></script>
-  <script src="arrange.js?v=20261125-trap-artwork" defer></script>
+  <script src="arrange.js?v=20261126-printed-titles" defer></script>
   <script src="editor-history.js?v=20261125-trap-artwork" defer></script>
-  <script src="layouts.js?v=20261125-trap-artwork" defer></script>
+  <script src="layouts.js?v=20261126-printed-titles" defer></script>
   <script src="history.js?v=20261125-trap-artwork" defer></script>
-  <script src="app.js?v=20261125-trap-artwork" defer></script>
+  <script src="app.js?v=20261126-printed-titles" defer></script>
   <script src="live.js?v=20261125-bridge-warmup" defer></script>
   <script src="export.js?v=20261125-trap-artwork" defer></script>
 </head>
-<body>
-  <header class="top">
-    <h1>Deckeditor</h1>
-    <div class="actions">
-      <button id="restart">Restart draft</button>
-      <button id="undo" disabled>Undo</button>
-      <button id="redo" disabled>Redo</button>
-      <button id="export" disabled>Export decklist</button>
-      <span id="selection-count" aria-live="polite">0 selected</span>
-      <div class="sort-control" id="sort-control">
-        <button id="sort-cards" aria-expanded="false" aria-controls="sort-options" disabled>Sort selection ▾</button>
-        <div id="sort-options" class="sort-options" hidden>
-          <button data-sort="name">Name</button>
-          <button data-sort="color">Color</button>
-          <button data-sort="mana">Mana value</button>
-          <button data-layout="curve">Layout: Mana curve</button>
-          <button data-layout="colors">Layout: Color overview</button>
-          <button data-layout="color-type">Layout: Color by type</button>
-          <button data-layout="review">Layout: Deck review</button>
-          <button id="layout-presets-open">Manage layout presets…</button>
+<body class="deck-controls-hidden">
+  <header class="workbench-header">
+    <div class="top" id="deck-actions">
+      <h1>Deckeditor</h1>
+      <div class="actions">
+        <button id="restart">Restart draft</button>
+        <button id="undo" disabled>Undo</button>
+        <button id="redo" disabled>Redo</button>
+        <button id="export" disabled>Export decklist</button>
+        <span id="selection-count" aria-live="polite">0 selected</span>
+        <div class="sort-control" id="sort-control">
+          <button id="sort-cards" aria-expanded="false" aria-controls="sort-options" disabled>Sort selection ▾</button>
+          <div id="sort-options" class="sort-options" hidden>
+            <button data-sort="name">Name</button>
+            <button data-sort="color">Color</button>
+            <button data-sort="mana">Mana value</button>
+            <button data-layout="curve">Layout: Mana curve</button>
+            <button data-layout="colors">Layout: Color overview</button>
+            <button data-layout="color-type">Layout: Color by type</button>
+            <button data-layout="review">Layout: Deck review</button>
+            <button id="layout-presets-open">Manage layout presets…</button>
+          </div>
         </div>
+        <label><input type="checkbox" id="show-card-names"> Show trap names</label>
+        <label><input type="checkbox" id="keep-card-top"> Keep card top</label>
+        <button id="live-open" hidden>Cubeapp</button>
+        <button id="search-open">Card search</button>
       </div>
-      <label><input type="checkbox" id="show-card-names"> Show trap names</label>
-      <button id="live-open" hidden>Cubeapp</button>
-      <button id="search-open">Card search</button>
+    </div>
+    <div class="tab-bar">
+      <span class="active-tab" id="workspace-label">Practice draft</span>
+      <button type="button" id="draft-status-open">Draft status</button>
+      <div class="progress" id="progress" aria-label="Pack progress"></div>
+      <div class="actions" id="complete-panel" hidden>
+        <strong>Draft complete</strong>
+        <button id="submit">Submit demo deck</button>
+      </div>
     </div>
   </header>
-  <div class="tab-bar">
-    <span class="active-tab" id="workspace-label">Practice draft</span>
-    <button type="button" id="draft-status-open">Draft status</button>
-    <div class="progress" id="progress" aria-label="Pack progress"></div>
-    <div class="actions" id="complete-panel" hidden>
-      <strong>Draft complete</strong>
-      <button id="submit">Submit demo deck</button>
-    </div>
-  </div>
   <main class="desktop">
     <div class="table" id="table">
       <section class="pane booster" id="draft-panel" aria-labelledby="booster-title">
@@ -71,16 +74,21 @@
       <div id="pool-divider" class="pane-divider" role="separator" aria-label="Resize Pool and deck panes" aria-orientation="horizontal" tabindex="0"></div>
       <div id="deck-divider" class="pane-divider" role="separator" aria-label="Resize Main deck and Sideboard" aria-orientation="vertical" tabindex="0"></div>
     </div>
-    <aside class="pane inspector" aria-labelledby="preview-title">
-      <header class="pane-bar"><h2 id="preview-title">Card View</h2></header>
-      <div class="preview-drawers" id="preview">
-        <section class="preview-drawer"><header><h3 id="preview-primary-title">Card</h3></header><div class="preview" id="preview-primary"><p>Hover over a card to preview it here.</p></div></section>
-        <section class="preview-drawer"><header><h3 id="preview-secondary-title">Details</h3><button id="preview-detail-toggle" hidden>Oracle text</button><button id="preview-inspect-trap" hidden>Inspect trap</button></header><div class="preview" id="preview-secondary"></div></section>
-      </div>
-    </aside>
+    <div class="card-view-sidebar">
+      <button type="button" id="deck-actions-toggle" aria-pressed="false">
+        <span class="deck-toggle-indicator" aria-hidden="true"></span>Deck actions
+      </button>
+      <aside class="pane inspector" aria-labelledby="preview-title">
+        <header class="pane-bar"><h2 id="preview-title">Card View</h2></header>
+        <div class="preview-drawers" id="preview">
+          <section class="preview-drawer"><header><h3 id="preview-primary-title">Card</h3></header><div class="preview" id="preview-primary"><p>Hover over a card to preview it here.</p></div></section>
+          <section class="preview-drawer"><header><h3 id="preview-secondary-title">Details</h3><button id="preview-detail-toggle" hidden>Oracle text</button><button id="preview-inspect-trap" hidden>Inspect trap</button></header><div class="preview" id="preview-secondary"></div></section>
+        </div>
+      </aside>
+    </div>
   </main>
-  <footer class="status-bar">
-    <span id="notice" role="status"></span>
+  <span id="notice" role="status"></span>
+  <footer class="status-bar" hidden>
     <span id="pick-hint">Double-click to pick, or drag a card into a deck zone.</span>
     <span id="arrange-hint">Right-click a card for actions. Drag from empty space to select.</span>
     <span id="total"></span>
