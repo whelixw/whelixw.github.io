@@ -120,12 +120,12 @@ button:not(:disabled):hover { border-color: var(--accent); }
   gap: 4px;
   padding: 4px;
 }
-.zone { container-type: inline-size; }
+.zone { container-type: inline-size; --stack-step: 22px; }
 .zone-main { --zone-zoom: var(--zoom-main, 1); }
 .zone-pool { --zone-zoom: var(--zoom-pool, 1); }
 .zone-side { --zone-zoom: var(--zoom-side, 1); }
-.zone-main, .zone-pool { --slot-width: calc(var(--zone-zoom) * 1.1 * clamp(52px, (100cqw - 35px) / 10, 112px)); }
-.zone-side { --slot-width: calc(var(--zone-zoom) * 1.1 * clamp(52px, (100cqw - 14px) / 3, 112px)); }
+.zone-main, .zone-pool { --slot-width: calc(var(--zone-zoom) * var(--printed-card-scale, 1) * clamp(52px, (100cqw - 35px) / 10, 112px)); }
+.zone-side { --slot-width: calc(var(--zone-zoom) * var(--printed-card-scale, 1) * clamp(52px, (100cqw - 14px) / 3, 112px)); }
 .zone-zoom { display: inline-flex; align-items: center; gap: 3px; }
 .zone-zoom input { width: 52px; margin: 0; }
 .zone-cards {
@@ -209,7 +209,7 @@ button:not(:disabled):hover { border-color: var(--accent); }
 .show-card-names .trap-name,
 .choosing-trap .trap-name,
 .inspect-components .trap-name,
-.card .trap-art-component:is(:hover, :focus-visible) > .trap-name,
+:is(.card, .preview-trap-art) .trap-art-component:is(:hover, :focus-visible) > .trap-name,
 .card .trap-art-option:focus-visible .trap-name { display: block; }
 .show-card-names .trap-name {
   background: transparent;
@@ -295,10 +295,19 @@ button:not(:disabled):hover { border-color: var(--accent); }
   background: #222;
   z-index: 2;
 }
-.preview-trap-art { position: relative; aspect-ratio: .717; overflow: hidden; }
-.preview-trap-art > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.preview-trap-art {
+  position: relative;
+  width: min(100%, 300px, calc(100cqh * .717));
+  aspect-ratio: .717;
+  margin-inline: auto;
+  overflow: hidden;
+}
 
-.preview-drawers { flex: 1; min-height: 0; display: grid; grid-template-rows: repeat(2, minmax(0, 1fr)); }
+#preview-title { white-space: nowrap; }
+#preview-modes { display: flex; flex-wrap: wrap; gap: 2px; margin-left: auto; }
+#preview-modes button { font-size: 11px; padding: 2px 4px; }
+#preview-modes button[aria-pressed="true"] { border-color: var(--accent); background: #314858; }
+.preview-drawers { flex: 1; min-height: 0; display: grid; grid-auto-rows: minmax(0, 1fr); }
 .preview-drawer { min-height: 0; display: flex; flex-direction: column; border-bottom: 1px solid var(--edge); }
 .preview-drawer > header { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
 .preview-drawer h3 { margin: 0; padding: 3px 6px; font-size: 11px; color: var(--muted); }
@@ -322,6 +331,7 @@ button:not(:disabled):hover { border-color: var(--accent); }
 .trap-art-component { position: relative; display: block; width: 100%; padding: 0; border: 0; border-radius: 0; flex: 1 1 0; min-width: 0; min-height: 0; overflow: hidden; background: var(--canvas); }
 .trap-art-option { position: relative; display: flex; min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 0; overflow: hidden; background: transparent; }
 .card .trap-art-component:is(:hover, :focus-visible)::after,
+.preview-trap-art .trap-art-component:is(:hover, :focus-visible, [aria-pressed="true"])::after,
 .card .trap-art-option:focus-visible::after {
   content: "";
   position: absolute;
@@ -407,10 +417,13 @@ button:not(:disabled):hover { border-color: var(--accent); }
 .sort-options button { text-align: left; }
 .top .actions { flex-wrap: wrap; }
 #arrange-hint { color: var(--muted); }
-.preview { padding: 7px; overflow: auto; }
-.preview figure, .preview-trap-art { width: 100%; max-width: 300px; margin-inline: auto; }
+.preview { padding: 7px; overflow: auto; container-type: size; }
+.preview figure { display: flex; flex-direction: column; height: 100%; max-width: 300px; margin-inline: auto; }
+.preview-face { flex: 1; min-height: 0; aspect-ratio: auto; background: transparent; border-radius: 0; }
+.preview-face img { object-position: top center; }
 .preview figcaption { padding: 5px 2px; }
 .oracle { padding: 6px 2px; overflow-wrap: anywhere; }
+.oracle + .oracle { border-top: 1px solid var(--edge); }
 .oracle .type { margin: 5px 0; color: var(--muted); }
 .oracle .rules { white-space: pre-wrap; }
 .oracle .stats { text-align: right; margin-top: 5px; }
@@ -522,7 +535,8 @@ dialog header button { margin-left: auto; }
 }
 .deck-zone-count[data-selected]:not([data-selected="0"]) { color: var(--accent); }
 
-.zone {
+.printed-titles { --printed-card-scale: 1.1; }
+.printed-titles .zone {
   /* Crop the upper border and retain the title and mana symbols on standard faces. */
   --printed-title-offset: 24;
   --printed-title-bottom: 72;
@@ -531,21 +545,21 @@ dialog header button { margin-left: auto; }
   --stack-step: calc(2px + (var(--slot-width) - 2px) / .717 *
     (var(--printed-title-bottom) - var(--printed-title-offset)) / 680);
 }
-body.keep-card-top .zone { --printed-title-offset: 0; }
-.deck-slot .pile > .card:not(:last-child) {
+.printed-titles.keep-card-top .zone { --printed-title-offset: 0; }
+.printed-titles .deck-slot .pile > .card:not(:last-child) {
   clip-path: inset(0 0 max(0px, calc(100% - var(--stack-step))));
   border-radius: 2px;
 }
-.deck-slot .pile > .card:not(:last-child) > img {
+.printed-titles .deck-slot .pile > .card:not(:last-child) > img {
   object-fit: fill;
   clip-path: inset(var(--printed-title-start) 0 calc(100% - var(--printed-title-end)));
   transform: translateY(calc(-1 * var(--printed-title-start)));
 }
 /* The hover menu would cover the mana symbols. Right-click and Enter still open it. */
-.deck-slot .pile > .card:not(:last-child) > .card-menu-toggle,
-.deck-slot .pile > .card:not(:last-child):has(> img) > .fallback,
-.deck-slot .pile > .card:not(:last-child) > .fallback small { display: none; }
-.deck-slot .pile > .card:not(:last-child) > .fallback {
+.printed-titles .deck-slot .pile > .card:not(:last-child) > .card-menu-toggle,
+.printed-titles .deck-slot .pile > .card:not(:last-child):has(> img) > .fallback,
+.printed-titles .deck-slot .pile > .card:not(:last-child) > .fallback small { display: none; }
+.printed-titles .deck-slot .pile > .card:not(:last-child) > .fallback {
   padding: 0 3px;
   font-size: clamp(4px, calc(var(--stack-step) - 2px), 11px);
   line-height: calc(var(--stack-step) - 2px);
@@ -571,7 +585,7 @@ body.deck-dragging .slot-target > .pile { outline: 2px solid var(--accent); outl
   .booster { grid-area: booster; width: 100%; }
   .zone-pool { grid-area: pool; width: 100%; }
   .pane-divider { display: none; }
-  .card-view-sidebar { position: sticky; top: 4px; }
+  .card-view-sidebar { position: sticky; top: 4px; height: 75dvh; }
   .canvas { min-height: 95px; }
   .pack { justify-content: flex-start; }
   .status-bar { flex-wrap: wrap; }
@@ -579,4 +593,3 @@ body.deck-dragging .slot-target > .pile { outline: 2px solid var(--accent); outl
 @media (hover: none) {
   .card-menu-toggle { opacity: 1; }
 }
-

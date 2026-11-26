@@ -6,18 +6,18 @@
   <meta name="description" content="Draft and build your Magic deck in one workspace.">
   <meta name="cubeapp-bridge" content="https://whelixw-phdk-bridge.onrender.com">
   <title>Deckeditor — Draft Workbench</title>
-  <link rel="stylesheet" href="style.css?v=20261126-printed-titles">
-  <script src="card-details.js?v=20261125-trap-artwork" defer></script>
-  <script src="traps.js?v=20261125-trap-artwork" defer></script>
-  <script src="arrange.js?v=20261126-printed-titles" defer></script>
-  <script src="editor-history.js?v=20261125-trap-artwork" defer></script>
-  <script src="layouts.js?v=20261126-printed-titles" defer></script>
-  <script src="history.js?v=20261125-trap-artwork" defer></script>
-  <script src="app.js?v=20261126-printed-titles" defer></script>
-  <script src="live.js?v=20261125-bridge-warmup" defer></script>
-  <script src="export.js?v=20261125-trap-artwork" defer></script>
+  <link rel="stylesheet" href="style.css?v=20261126-card-view-main">
+  <script src="card-details.js?v=20261126-card-view-main" defer></script>
+  <script src="traps.js?v=20261126-card-view-main" defer></script>
+  <script src="arrange.js?v=20261126-card-view-main" defer></script>
+  <script src="editor-history.js?v=20261126-card-view-main" defer></script>
+  <script src="layouts.js?v=20261126-card-view-main" defer></script>
+  <script src="history.js?v=20261126-card-view-main" defer></script>
+  <script src="app.js?v=20261126-card-view-main" defer></script>
+  <script src="live.js?v=20261126-card-view-main" defer></script>
+  <script src="export.js?v=20261126-card-view-main" defer></script>
 </head>
-<body class="deck-controls-hidden">
+<body class="printed-titles">
   <header class="workbench-header">
     <div class="top" id="deck-actions">
       <h1>Deckeditor</h1>
@@ -75,14 +75,22 @@
       <div id="deck-divider" class="pane-divider" role="separator" aria-label="Resize Main deck and Sideboard" aria-orientation="vertical" tabindex="0"></div>
     </div>
     <div class="card-view-sidebar">
-      <button type="button" id="deck-actions-toggle" aria-pressed="false">
+      <button type="button" id="deck-actions-toggle" aria-pressed="true">
         <span class="deck-toggle-indicator" aria-hidden="true"></span>Deck actions
       </button>
       <aside class="pane inspector" aria-labelledby="preview-title">
-        <header class="pane-bar"><h2 id="preview-title">Card View</h2></header>
+        <header class="pane-bar">
+          <h2 id="preview-title">Card View</h2>
+          <div id="preview-modes" role="group" aria-label="Card View mode">
+            <button type="button" data-mode="auto" aria-pressed="true">Auto</button>
+            <button type="button" data-mode="text" aria-pressed="false">Text</button>
+            <button type="button" data-mode="trap" aria-pressed="false">Trap</button>
+            <button type="button" data-mode="back" aria-pressed="false">Back</button>
+          </div>
+        </header>
         <div class="preview-drawers" id="preview">
           <section class="preview-drawer"><header><h3 id="preview-primary-title">Card</h3></header><div class="preview" id="preview-primary"><p>Hover over a card to preview it here.</p></div></section>
-          <section class="preview-drawer"><header><h3 id="preview-secondary-title">Details</h3><button id="preview-detail-toggle" hidden>Oracle text</button><button id="preview-inspect-trap" hidden>Inspect trap</button></header><div class="preview" id="preview-secondary"></div></section>
+          <section class="preview-drawer" id="preview-secondary-drawer" hidden><header><h3 id="preview-secondary-title">Details</h3><button id="preview-inspect-trap" hidden>Inspect trap</button></header><div class="preview" id="preview-secondary"></div></section>
         </div>
       </aside>
     </div>
@@ -250,4 +258,3 @@
   </dialog>
 </body>
 </html>
-

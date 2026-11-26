@@ -375,19 +375,11 @@ function loadCardDetails(id) {
     if (exact || sameCard) {
       const details = exact || { ...sameCard, expansion: undefined, collector_number: undefined };
       remotePrinting({ ...details, id: Number(id.slice(1)) });
-      if (previewed === id || previewComponent === id) renderPreview();
+      if (previewPrinting() === id) renderPreview();
     }
   }).catch(() => {}).finally(() => detailRequests.delete(id));
   detailRequests.set(id, request);
   return request;
-}
-
-$("table").addEventListener("pointerover", inspectRemote);
-$("table").addEventListener("focusin", inspectRemote);
-$("table").addEventListener("click", inspectRemote);
-function inspectRemote(event) {
-  const id = event.target.closest("[data-preview]")?.dataset.preview;
-  if (id?.startsWith("p")) loadCardDetails(id);
 }
 
 function readLayout(key) {
@@ -983,4 +975,3 @@ async function openLimitedPool(id) {
 }
 liveForm("live-pool", ({ pool }) => openLimitedPool(pool));
 liveForm("live-seat", ({ seat }) => openDraft(seat.trim()));
-

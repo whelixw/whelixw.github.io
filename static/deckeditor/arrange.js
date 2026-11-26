@@ -254,7 +254,8 @@ function setupCardActions() {
     const selection = selectedCards();
     const ids = selection.map(({ id }) => String(id));
     const pick = selection.length === 1 ? selection[0] : null;
-    const origin = pick && trapOrigin(pick);
+    const standaloneChoice = pick && isStandaloneTrapChoice(pick.cardId);
+    const origin = standaloneChoice ? { trap: pick, choicePath: "root" } : pick && trapOrigin(pick);
     $("card-action-scope").textContent = `Actions for ${ids.length} selected ${ids.length === 1 ? "card" : "cards"}`;
     showSortMenu(false);
     const moves = $("card-action-move"); moves.replaceChildren();
@@ -273,7 +274,7 @@ function setupCardActions() {
       for (const zone of new Set(selection.map(({ zone }) => zone))) deckPiles(zone);
       save(); renderEditor();
     }); };
-    const expandable = selection.filter(({ cardId }) => traps.has(cardId) && !isTrapChoice(cardId));
+    const expandable = selection.filter(({ cardId }) => canExpandTrap(cardId));
     const coveredChoice = pick && isTrapChoice(pick.cardId) && card.nextElementSibling;
     const trap = $("card-action-trap"); trap.hidden = !coveredChoice && !expandable.length;
     trap.textContent = coveredChoice ? "Bring choices to front" : "Expand selected traps";
@@ -292,7 +293,7 @@ function setupCardActions() {
         choice[1].forEach(([option], index) => {
           if (String(index) === origin.trap.choices?.[path]) return;
           const button = document.createElement("button"); button.type = "button";
-          button.textContent = `${path === pick.path && isTrapChoice(pick.cardId) ? "Choose" : "Reselect"} ${trapSummary(option)}`;
+          button.textContent = `${standaloneChoice || (path === pick.path && isTrapChoice(pick.cardId)) ? "Choose" : "Reselect"} ${trapSummary(option)}`;
           button.onclick = () => { close(); chooseTrapOption(origin.trap, path, index); }; options.append(button);
         });
       }
@@ -381,10 +382,18 @@ function setupArrangement() {
   setupPaneDividers();
   setupZoneZoom();
   const controls = $("deck-actions-toggle");
-  controls.addEventListener("click", () => {
-    const visible = document.body.classList.contains("deck-controls-hidden");
+  const deckActionsKey = "deckeditor-deck-actions";
+  const setDeckActions = (visible) => {
     document.body.classList.toggle("deck-controls-hidden", !visible);
     controls.setAttribute("aria-pressed", String(visible));
+  };
+  let deckActionsVisible = true;
+  try { deckActionsVisible = localStorage.getItem(deckActionsKey) !== "false"; } catch {}
+  setDeckActions(deckActionsVisible);
+  controls.addEventListener("click", () => {
+    const visible = document.body.classList.contains("deck-controls-hidden");
+    setDeckActions(visible);
+    try { localStorage.setItem(deckActionsKey, String(visible)); } catch {}
     if (!visible) showSortMenu(false);
   });
   const keepTop = $("keep-card-top");
@@ -402,7 +411,7 @@ function setupArrangement() {
     showNames();
     try { localStorage.setItem("deckeditor-show-card-names", String(names.checked)); } catch {}
     renderEditor();
-    if (traps.has(previewed)) showTrapPreview(previewed);
+    if (traps.has(previewed)) renderPreview();
   });
   setupSelectionBox($("zones"));
   const openActions = setupCardActions();
@@ -426,6 +435,15 @@ function setupArrangement() {
     if (row && event.target.closest(".card-menu-toggle")) {
       event.stopPropagation(); openActions(row, event.clientX, event.clientY, event.detail === 0); return;
     }
+    const toggle = event.ctrlKey || event.metaKey || event.shiftKey;
+    const standaloneChoice = clicked && isStandaloneTrapChoice(clicked.cardId);
+    const namedChoice = clicked && names.checked && isTrapChoice(clicked.cardId);
+    const chooseButton = event.target.closest(".choose-trap");
+    if ((standaloneChoice && chooseButton) || ((standaloneChoice || namedChoice) && !toggle && !event.target.closest("button"))) {
+      chosenCards.clear();
+      openActions(row, event.clientX, event.clientY, event.detail === 0);
+      return;
+    }
     if (clicked && isTrapChoice(clicked.cardId) && event.target.closest(".choose-trap")) {
       event.stopPropagation();
       const enabled = !row.classList.contains("choosing-trap");
@@ -434,29 +452,28 @@ function setupArrangement() {
       return;
     }
     const option = event.target.closest("[data-trap-option]");
-    if (option && clicked && isTrapChoice(clicked.cardId)) {
+    if (option && clicked && (standaloneChoice || isTrapChoice(clicked.cardId))) {
       event.stopPropagation();
       if (event.ctrlKey || event.metaKey) {
         selectCard(event, true, true);
         return;
       }
-      if (!names.checked && !event.shiftKey && !row.classList.contains("choosing-trap")) return;
-      const origin = trapOrigin(clicked);
+      if (!event.shiftKey && (standaloneChoice || names.checked || !row.classList.contains("choosing-trap"))) return;
+      const origin = standaloneChoice ? { trap: clicked, choicePath: "root" } : trapOrigin(clicked);
       if (origin?.choicePath) chooseTrapOption(origin.trap, origin.choicePath, Number(option.dataset.trapOption));
       return;
     }
     if (row && event.target.closest(".inspect-trap")) {
       event.preventDefault(); event.stopPropagation();
-      if (clicked && traps.has(clicked.cardId) && !isTrapChoice(clicked.cardId)) resolveTrap(clicked, {});
+      if (clicked && canExpandTrap(clicked.cardId)) resolveTrap(clicked, {});
       return;
     }
-    if (event.shiftKey && clicked && traps.has(clicked.cardId) && !isTrapChoice(clicked.cardId)
+    if (event.shiftKey && clicked && canExpandTrap(clicked.cardId)
       && !event.target.closest("select, .trap-component-toggle")) {
       event.preventDefault(); event.stopPropagation(); resolveTrap(clicked, {}); return;
     }
-    const toggle = event.ctrlKey || event.metaKey || event.shiftKey;
     const selectedRow = selectCard(event, toggle);
-    if (selectedRow && !toggle && names.checked && clicked && traps.has(clicked.cardId) && !isTrapChoice(clicked.cardId)) {
+    if (selectedRow && !toggle && names.checked && clicked && canExpandTrap(clicked.cardId)) {
       openActions(selectedRow, event.clientX, event.clientY);
     }
   });
@@ -533,4 +550,3 @@ function manaValue(mana) {
   return [...(mana || "").matchAll(/\{([^}]+)\}/g)].reduce((total, [, symbol]) =>
     total + (/^[XYZ]$/.test(symbol) ? 0 : Number.parseInt(symbol, 10) || 1), 0);
 }
-

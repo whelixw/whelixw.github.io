@@ -33,7 +33,7 @@ const zones = $("zones");
 let previewed = null;
 let previewComponent = null;
 let pinnedTrapComponent = null;
-let showBackOracle = false;
+let previewMode = "auto";
 let activeLive = null;
 const remoteCards = new Map();
 
@@ -77,10 +77,7 @@ function useImageFallback(container) {
 
 function showPreview(id, component = null) {
   if (id === previewed && component === previewComponent) return;
-  if (id !== previewed) {
-    showBackOracle = false;
-    pinnedTrapComponent = null;
-  }
+  if (id !== previewed) pinnedTrapComponent = null;
   previewed = id;
   previewComponent = component;
   renderPreview();
@@ -100,54 +97,76 @@ function renderFace(container, face) {
   container.querySelector("figcaption").textContent = face.name;
 }
 
-function renderOracle(container, face) {
-  container.innerHTML = '<div class="oracle"><strong></strong><div class="type"></div><div class="rules"></div><div class="stats"></div></div>';
-  container.querySelector("strong").textContent = [face.name, face.mana].filter(Boolean).join("  ");
-  container.querySelector(".type").textContent = face.type;
-  container.querySelector(".rules").textContent = face.oracle || "";
-  container.querySelector(".stats").textContent = face.stats || "";
+function renderOracle(container, faces) {
+  container.innerHTML = faces.map((face) => `<article class="oracle">
+    <strong>${escapeHtml([face.name, face.mana].filter(Boolean).join("  "))}</strong>
+    <div class="type">${escapeHtml(face.type || "")}</div>
+    <div class="rules">${escapeHtml(face.oracle || "")}</div>
+    <div class="stats">${escapeHtml(face.stats || "")}</div>
+  </article>`).join("");
+}
+
+function previewPrinting() {
+  const trap = traps.get(previewed);
+  return trap ? previewComponent ?? trapComponents(trap.tree)[0] : previewed;
 }
 
 function renderPreview() {
   const upper = $("preview-primary");
   const lower = $("preview-secondary");
-  const toggle = $("preview-detail-toggle");
-  $("preview-inspect-trap").hidden = true;
   const upperTitle = $("preview-primary-title");
   const lowerTitle = $("preview-secondary-title");
-  toggle.hidden = true;
-  if (previewed === null) {
-    upperTitle.textContent = "Card";
-    lowerTitle.textContent = "Details";
-    upper.innerHTML = "<p>Hover over a card to preview it here.</p>";
-    lower.replaceChildren();
-    return;
-  }
-  if (traps.has(previewed)) {
-    upperTitle.textContent = "Trap component";
+  const isTrap = traps.has(previewed);
+  const isAuto = previewMode === "auto";
+  const showTrap = isTrap && (isAuto || previewMode === "trap");
+  $("preview-secondary-drawer").hidden = !showTrap && !(isAuto && previewed !== null && !isTrap);
+  $("preview-inspect-trap").hidden = !showTrap;
+
+  const printing = previewPrinting();
+  if (showTrap) {
     lowerTitle.textContent = trapInfo(previewed).name;
-    showTrapPreview(previewed);
-    const component = previewComponent ?? trapComponents(traps.get(previewed).tree)[0];
-    if (component === undefined) upper.replaceChildren();
-    else {
-      renderFace(upper, cardInfo(component).faces[0]);
-      if (typeof component === "string" && component.startsWith("p")) loadCardDetails(component);
-    }
+    showTrapPreview(previewed, printing);
+  }
+  if (printing === null || printing === undefined) {
+    upperTitle.textContent = "Card";
+    upper.innerHTML = printing === null ? "<p>Hover over a card to preview it here.</p>" : "";
     return;
   }
-  const [front, back] = cardInfo(previewed).faces;
-  upperTitle.textContent = back ? "Front face" : "Card";
-  lowerTitle.textContent = back && !showBackOracle ? "Back face" : "Oracle text";
-  toggle.hidden = !back;
-  toggle.textContent = showBackOracle ? "Show back face" : "Oracle text";
-  renderFace(upper, front);
-  if (back && !showBackOracle) renderFace(lower, back);
-  else renderOracle(lower, back ? { ...front, oracle: [front.oracle, back.oracle].filter(Boolean).join("\n\n") } : front);
+
+  const faces = cardInfo(printing).faces;
+  const [front, back] = faces;
+  if (isAuto || showTrap) {
+    upperTitle.textContent = isTrap ? "Trap component" : back ? "Front face" : "Card";
+    renderFace(upper, front);
+    if (!isTrap) {
+      lowerTitle.textContent = back ? "Back face" : "Oracle text";
+      if (back) renderFace(lower, back);
+      else renderOracle(lower, faces);
+    }
+  } else if (previewMode === "back" && back) {
+    upperTitle.textContent = "Back face";
+    renderFace(upper, back);
+  } else if (!showTrap) {
+    upperTitle.textContent = "Oracle text";
+    renderOracle(upper, faces);
+  }
+  if (remoteCards.has(printing)) loadCardDetails(printing);
 }
 
-$("preview-detail-toggle").addEventListener("click", () => {
-  showBackOracle = !showBackOracle;
+$("preview-modes").addEventListener("click", (event) => {
+  const selectedMode = event.target.closest("button[data-mode]");
+  if (!selectedMode) return;
+  previewMode = selectedMode.dataset.mode;
+  for (const button of $("preview-modes").querySelectorAll("button")) {
+    button.setAttribute("aria-pressed", String(button === selectedMode));
+  }
   renderPreview();
+});
+$("preview-secondary").addEventListener("click", (event) => {
+  const component = event.target.closest("button[data-component]");
+  if (!component || !traps.has(previewed)) return;
+  pinnedTrapComponent = cardKey(component.dataset.component);
+  showPreview(previewed, pinnedTrapComponent);
 });
 
 let pointerPosition;
@@ -352,7 +371,9 @@ function renderEditor() {
     const count = orderedZone(zone).length;
     function renderCard({ id, cardId }) {
       const { name } = cardInfo(cardId);
-      const trapControl = !traps.has(cardId) ? "" : isTrapChoice(cardId)
+      const trapControl = !traps.has(cardId) ? "" : isStandaloneTrapChoice(cardId)
+        ? '<button type="button" class="inspect-trap choose-trap" aria-haspopup="true" aria-controls="card-actions">Choose</button>'
+        : isTrapChoice(cardId)
         ? '<button type="button" class="inspect-trap choose-trap" aria-pressed="false">Choose</button>'
         : '<button type="button" class="inspect-trap expand-trap" title="Expand this trap into deck cards">Expand</button>';
       return `<div class="card${chosenCards.has(String(id)) ? " chosen" : ""}" tabindex="0" aria-label="${escapeHtml(name)}" draggable="true" data-pick="${id}" data-preview="${cardId}">
@@ -637,4 +658,3 @@ setInterval(() => {
   if (!activeLive && draft.deadline <= Date.now()) confirmPick(draft.available[0], "main", true);
   else renderTimer();
 }, 250);
-

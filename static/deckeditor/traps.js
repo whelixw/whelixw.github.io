@@ -64,6 +64,14 @@ function isTrapChoice(id) {
   return traps.get(id)?.option === true;
 }
 
+function isStandaloneTrapChoice(id) {
+  return !isTrapChoice(id) && traps.get(id)?.tree[0] === "AnyNode";
+}
+
+function canExpandTrap(id) {
+  return traps.has(id) && !isTrapChoice(id) && !isStandaloneTrapChoice(id);
+}
+
 function trapComponentSelector(id, layout = trapArtworkLayout(traps.get(id).imageTree || traps.get(id).tree)) {
   if (!trapComponents(layout.node).length) return "";
 
@@ -94,7 +102,7 @@ function trapArtworkLayout(node) {
   return { node, name, rows };
 }
 
-function trapArtTree(layout, interactive = false, count = 1, parentType = null, optionIndexes) {
+function trapArtTree(layout, interactive = false, count = 1, parentType = null, optionIndexes, optionTag = "button") {
   const { node, rows } = layout;
   const copies = count > 1 ? `<span class="trap-count" aria-hidden="true">${count}×</span>` : "";
   if (!rows) {
@@ -115,8 +123,8 @@ function trapArtTree(layout, interactive = false, count = 1, parentType = null, 
       const child = row.node;
       const index = optionIndexes.get(JSON.stringify(canonicalTrapTree(child)));
       const member = trapComponents(child)[0];
-      const summary = escapeHtml(trapSummary(child));
-      return `<button type="button" class="trap-art-option" data-trap-option="${index}" ${member === undefined ? "" : `data-component="${member}"`} aria-label="Choose ${summary}">${trapArtTree(row, false, 1, type)}</button>`;
+      const attributes = optionTag === "button" ? ` type="button" aria-label="Choose ${escapeHtml(trapSummary(child))}"` : "";
+      return `<${optionTag}${attributes} class="trap-art-option" data-trap-option="${index}" ${member === undefined ? "" : `data-component="${member}"`}>${trapArtTree(row, false, 1, type)}</${optionTag}>`;
     }).join("")}</span>
   </span>`;
 }
@@ -127,15 +135,18 @@ function originalTrapImage(id) {
     ? `${bridgeOrigin}/cubeapp/api/images/${imageId}/?type=trap&size_slug=medium` : "";
 }
 
-function originalTrapHitAreas({ node, rows }, optionIndexes) {
-  if (!rows) return `<span class="trap-art-component" data-component="${node}"></span>`;
+function originalTrapHitAreas({ node, name, rows }, optionIndexes, preview = false, optionTag = "button") {
+  if (!rows) {
+    if (preview) return `<button type="button" class="trap-art-component" data-component="${node}" aria-label="Preview ${escapeHtml(name)}"></button>`;
+    return `<span class="trap-art-component" data-component="${node}"></span>`;
+  }
   const markup = rows.map((row) => {
     const { node: child, count } = row;
-    let markup = originalTrapHitAreas(row);
+    let markup = originalTrapHitAreas(row, null, preview);
     if (optionIndexes) {
-      const label = escapeHtml(trapSummary(child));
       const index = optionIndexes.get(JSON.stringify(canonicalTrapTree(child)));
-      markup = `<button type="button" class="trap-art-option" data-trap-option="${index}" aria-label="Choose ${label}">${markup}</button>`;
+      const attributes = optionTag === "button" ? ` type="button" aria-label="Choose ${escapeHtml(trapSummary(child))}"` : "";
+      markup = `<${optionTag}${attributes} class="trap-art-option" data-trap-option="${index}">${markup}</${optionTag}>`;
     }
     return Array.isArray(child) ? markup.repeat(count) : markup;
   }).join("");
@@ -145,38 +156,41 @@ function originalTrapHitAreas({ node, rows }, optionIndexes) {
 function trapFace(id, interactive = true, deck = false) {
   const { tree, imageTree } = traps.get(id);
   const layout = trapArtworkLayout(imageTree || tree);
-  const chooseOptions = deck && isTrapChoice(id);
-  const optionIndexes = chooseOptions ? new Map(tree[1].map(([child], index) => [JSON.stringify(canonicalTrapTree(child)), index])) : null;
-  const overlay = interactive && !chooseOptions ? trapComponentSelector(id, layout) : "";
+  const standaloneChoice = isStandaloneTrapChoice(id);
+  const choice = deck && (isTrapChoice(id) || standaloneChoice);
+  const optionTag = standaloneChoice || $("show-card-names").checked ? "span" : "button";
+  const optionIndexes = choice ? new Map(tree[1].map(([child], index) => [JSON.stringify(canonicalTrapTree(child)), index])) : null;
+  const overlay = interactive && !choice ? trapComponentSelector(id, layout) : "";
   const source = deck ? originalTrapImage(id) : "";
   let original = "";
   if (source) {
-    original = `<img class="original-trap-art" src="${escapeHtml(source)}" alt="" draggable="false" loading="lazy"><span class="original-trap-components">${originalTrapHitAreas(layout, optionIndexes)}</span>`;
+    original = `<img class="original-trap-art" src="${escapeHtml(source)}" alt="" draggable="false" loading="lazy"><span class="original-trap-components">${originalTrapHitAreas(layout, optionIndexes, false, optionTag)}</span>`;
   }
-  return `<span class="trap-face"><span class="trap-art-strip">${trapArtTree(layout, false, 1, null, optionIndexes)}</span>${original}</span>${overlay}`;
+  return `<span class="trap-face"><span class="trap-art-strip">${trapArtTree(layout, false, 1, null, optionIndexes, optionTag)}</span>${original}</span>${overlay}`;
 }
 
-function showTrapPreview(id) {
+function showTrapPreview(id, component) {
   const preview = $("preview-secondary");
   const inspect = $("preview-inspect-trap");
   inspect.hidden = false;
   inspect.onclick = () => openTrap(id);
 
-  const { tree } = traps.get(id);
   const originalImage = originalTrapImage(id);
-  if (originalImage && preview.firstElementChild?.dataset.originalImage === originalImage) return;
-
-  preview.innerHTML = `<div class="preview-trap-art">${trapFace(id, false)}</div>`;
-  useImageFallback(preview);
-  if (!originalImage) return;
-
-  const art = preview.firstElementChild;
-  art.dataset.originalImage = originalImage;
-  const image = document.createElement("img");
-  image.alt = trapSummary(tree);
-  image.draggable = false;
-  image.addEventListener("load", () => art.replaceChildren(image), { once: true });
-  image.src = originalImage;
+  if (preview.firstElementChild?.dataset.trapId !== id || preview.firstElementChild.dataset.originalImage !== originalImage) {
+    const { tree, imageTree } = traps.get(id);
+    const layout = trapArtworkLayout(imageTree || tree);
+    const original = originalImage ? `<img class="original-trap-art" src="${escapeHtml(originalImage)}" alt="${escapeHtml(trapSummary(tree))}" draggable="false">
+      <span class="original-trap-components">${originalTrapHitAreas(layout, null, true)}</span>` : "";
+    preview.innerHTML = `<div class="preview-trap-art"><div class="trap-face">
+      <div class="trap-art-strip">${trapArtTree(layout, true)}</div>${original}
+    </div></div>`;
+    preview.firstElementChild.dataset.trapId = id;
+    preview.firstElementChild.dataset.originalImage = originalImage;
+    useImageFallback(preview);
+  }
+  for (const button of preview.querySelectorAll("button[data-component]")) {
+    button.setAttribute("aria-pressed", String(button.dataset.component === String(component)));
+  }
 }
 
 function trapLeaf(id, count = 1) {
@@ -265,7 +279,7 @@ function trapCollapsePath(pick, member) {
 function collapseTrap(pick, member) {
   if (!editorActionDepth) return editorAction("collapse trap", () => collapseTrap(pick, member));
   const path = trapCollapsePath(pick, member);
-  if (path) {
+  if (path && !(path === "root" && isStandaloneTrapChoice(pick.cardId))) {
     const choices = Object.fromEntries(Object.entries(pick.choices || {})
       .filter(([key]) => key !== path && !key.startsWith(`${path}.`)));
     resolveTrap(pick, choices, path);
@@ -279,7 +293,7 @@ function collapseTrap(pick, member) {
 }
 
 function chooseTrapOption(pick, path, index) {
-  if (!pick.members) return;
+  if (!pick.members && !(path === "root" && isStandaloneTrapChoice(pick.cardId))) return;
   if (!editorActionDepth) return editorAction("choose trap option", () => chooseTrapOption(pick, path, index));
   const node = trapChoiceNode(pick, path);
   if (node?.[0] !== "AnyNode" || !node[1][index]) return;
@@ -300,6 +314,7 @@ function trapChoiceNode(pick, choicePath) {
 }
 
 function resolveTrap(pick, choices, choicePath) {
+  if (isStandaloneTrapChoice(pick.cardId) && !traps.get(pick.cardId).tree[1][choices.root]) return;
   if (!editorActionDepth) return editorAction("expand trap", () => resolveTrap(pick, choices, choicePath));
   const previous = pick.members || [];
   const leaves = trapLeaves(pick, choices);
@@ -363,4 +378,3 @@ function deckPrintings() {
 function findEditorPick(id) {
   return editorPicks().find((pick) => String(pick.id) === String(id));
 }
-

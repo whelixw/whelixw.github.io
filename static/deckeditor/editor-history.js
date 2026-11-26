@@ -72,4 +72,3 @@ function replayEditorAction(direction) {
   updateEditorHistoryControls();
   notice(`${direction === "undo" ? "Undid" : "Redid"} ${command.label}.`);
 }
-
